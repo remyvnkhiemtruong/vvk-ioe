@@ -28,15 +28,27 @@ class ExamRegistrationService
                 throw ValidationException::withMessages(['exam' => 'Bạn đã đăng ký kỳ thi này.']);
             }
 
-            $session = $this->lockedSession($input['exam_session_id'] ?? null);
-            $this->availability->assertAvailable($session, $student, $exam);
+            $session = $this->lockedSessionIfNeeded($exam, $input['exam_session_id'] ?? null);
+            if ($session) {
+                $this->availability->assertAvailable($session, $student, $exam);
+            } elseif (! $this->availability->isExamTargetForStudent($exam, $student)) {
+                throw ValidationException::withMessages(['exam' => 'Lớp/khối của bạn không thuộc đối tượng đăng ký kỳ thi này.']);
+            }
 
             try {
                 $registration = ExamRegistration::create([
                     ...$this->payload($student, $input),
                     'student_id' => $student->id,
                     'exam_id' => $exam->id,
-                    'exam_session_id' => $session->id,
+                    'exam_session_id' => $session?->id,
+                    'grade_id' => $student->grade_id,
+                    'school_class_id' => $student->school_class_id,
+                    'primary_external_account_id' => trim((string) $input['ioe_id']),
+                    'primary_external_username' => $input['primary_external_username'] ?? null,
+                    'backup_external_account_id' => $this->backupAccount($exam, $input, 'backup_external_account_id'),
+                    'backup_external_username' => $this->backupAccount($exam, $input, 'backup_external_username'),
+                    'requested_by_user_id' => auth()->id(),
+                    'eligibility_snapshot' => $this->eligibilitySnapshot($student, $exam),
                     'registration_code' => $this->registrationCode(),
                     'status' => $exam->require_approval ? 'submitted' : 'approved',
                     'personal_computer_status' => $this->personalComputerStatus($input),
@@ -49,7 +61,9 @@ class ExamRegistrationService
             }
 
             $this->syncStudentContact($student, $input);
-            $this->availability->refreshFullStatus($session->refresh());
+            if ($session) {
+                $this->availability->refreshFullStatus($session->refresh());
+            }
 
             return $registration;
         });
@@ -61,22 +75,30 @@ class ExamRegistrationService
         $student = $registration->student;
 
         return DB::transaction(function () use ($registration, $exam, $student, $input) {
-            $sessionId = (int) ($input['exam_session_id'] ?? $registration->exam_session_id);
+            $sessionId = $input['exam_session_id'] ?? $registration->exam_session_id;
 
-            if ((int) $registration->exam_session_id !== $sessionId && ! $exam->allow_student_session_change) {
+            if ($sessionId && (int) $registration->exam_session_id !== (int) $sessionId && ! $exam->allow_student_session_change) {
                 throw ValidationException::withMessages([
                     'exam_session_id' => 'Nhà trường chưa cho phép học sinh đổi ca thi.',
                 ]);
             }
 
             $oldSession = $registration->chosenSession;
-            $session = $this->lockedSession($sessionId);
-            $this->availability->assertAvailable($session, $student, $exam, $registration->id);
+            $session = $this->lockedSessionIfNeeded($exam, $sessionId);
+            if ($session) {
+                $this->availability->assertAvailable($session, $student, $exam, $registration->id);
+            } elseif (! $this->availability->isExamTargetForStudent($exam, $student)) {
+                throw ValidationException::withMessages(['exam' => 'Lớp/khối của bạn không thuộc đối tượng đăng ký kỳ thi này.']);
+            }
 
             try {
                 $registration->update([
                     ...$this->payload($student, $input),
-                    'exam_session_id' => $session->id,
+                    'exam_session_id' => $session?->id,
+                    'primary_external_account_id' => trim((string) $input['ioe_id']),
+                    'primary_external_username' => $input['primary_external_username'] ?? $registration->primary_external_username,
+                    'backup_external_account_id' => $this->backupAccount($exam, $input, 'backup_external_account_id'),
+                    'backup_external_username' => $this->backupAccount($exam, $input, 'backup_external_username'),
                     'personal_computer_status' => $this->personalComputerStatus($input),
                 ]);
             } catch (QueryException) {
@@ -86,7 +108,9 @@ class ExamRegistrationService
             }
 
             $this->syncStudentContact($student, $input);
-            $this->availability->refreshFullStatus($session->refresh());
+            if ($session) {
+                $this->availability->refreshFullStatus($session->refresh());
+            }
             if ($oldSession && $oldSession->isNot($session)) {
                 $this->availability->refreshFullStatus($oldSession->refresh());
             }
@@ -95,10 +119,14 @@ class ExamRegistrationService
         });
     }
 
-    private function lockedSession(int|string|null $sessionId): ExamSession
+    private function lockedSessionIfNeeded(Exam $exam, int|string|null $sessionId): ?ExamSession
     {
         if (! $sessionId) {
-            throw ValidationException::withMessages(['exam_session_id' => 'Vui lòng chọn ca thi.']);
+            if ($exam->requiresSessionChoice()) {
+                throw ValidationException::withMessages(['exam_session_id' => 'Vui lòng chọn ca thi.']);
+            }
+
+            return null;
         }
 
         return ExamSession::whereKey($sessionId)->lockForUpdate()->firstOrFail();
@@ -139,6 +167,28 @@ class ExamRegistrationService
             'has_charger' => $usesPersonalComputer ? (bool) ($input['has_charger'] ?? false) : null,
             'device_note' => $usesPersonalComputer ? ($input['device_note'] ?? null) : null,
             'device_commitment' => $usesPersonalComputer && (bool) ($input['device_commitment'] ?? false),
+        ];
+    }
+
+    private function backupAccount(Exam $exam, array $input, string $field): ?string
+    {
+        if (! $exam->allowsBackupAccount()) {
+            return null;
+        }
+
+        return blank($input[$field] ?? null) ? null : trim((string) $input[$field]);
+    }
+
+    private function eligibilitySnapshot(Student $student, Exam $exam): array
+    {
+        return [
+            'student_code' => $student->student_code,
+            'grade' => $student->resolvedGrade(),
+            'class_name' => $student->class_name,
+            'exam_target_grades' => $exam->target_grades,
+            'exam_target_classes' => $exam->target_classes,
+            'registration_mode' => $exam->registration_mode ?? 'admin_assign_session',
+            'captured_at' => now()->toIso8601String(),
         ];
     }
 

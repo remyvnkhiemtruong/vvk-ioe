@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\AcademicYear;
+use App\Models\Grade;
 use App\Models\ImportBatch;
 use App\Models\SchoolClass;
+use App\Models\StaffProfile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -28,14 +31,14 @@ class SchoolClassImportService
         'weekly_sessions' => ['Số buổi học trên tuần', 'So buoi hoc tren tuan'],
     ];
 
-    public function previewPath(string $path, ?string $fileName = null, string $schoolYear = '2025-2026'): ImportBatch
+    public function previewPath(string $path, ?string $fileName = null, string $schoolYear = '2025-2026', ?int $headerRow = null): ImportBatch
     {
-        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path), $schoolYear));
+        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path), $schoolYear, $headerRow));
     }
 
-    public function analyzePath(string $path, ?string $fileName = null, string $schoolYear = '2025-2026'): array
+    public function analyzePath(string $path, ?string $fileName = null, string $schoolYear = '2025-2026', ?int $headerRow = null): array
     {
-        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 3);
+        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 3, $headerRow);
         $headers = $table['headers'];
         $mapping = $table['mapping'];
         $preview = [];
@@ -99,6 +102,7 @@ class SchoolClassImportService
             'type' => 'school_classes',
             'file_name' => $fileName ?? basename($path),
             'status' => 'preview',
+            'header_row' => $table['header_row'],
             'total_rows' => count($preview),
             'valid_rows' => count($preview) - count($errors),
             'invalid_rows' => count($errors),
@@ -126,7 +130,10 @@ class SchoolClassImportService
                         'identity_code' => Arr::get($row, 'identity_code'),
                         'class_name' => Arr::get($row, 'class_name'),
                         'grade' => (int) Arr::get($row, 'grade'),
+                        'grade_id' => $this->gradeId((int) Arr::get($row, 'grade')),
                         'homeroom_teacher' => Arr::get($row, 'homeroom_teacher'),
+                        'homeroom_teacher_id' => $this->homeroomTeacherId(Arr::get($row, 'homeroom_teacher')),
+                        'homeroom_teacher_resolution_status' => $this->homeroomResolutionStatus(Arr::get($row, 'homeroom_teacher')),
                         'study_shift' => Arr::get($row, 'study_shift'),
                         'foreign_language_1' => Arr::get($row, 'foreign_language_1'),
                         'foreign_language_2' => Arr::get($row, 'foreign_language_2'),
@@ -138,6 +145,7 @@ class SchoolClassImportService
                         'is_boarding' => Arr::get($row, 'is_boarding'),
                         'weekly_sessions' => Arr::get($row, 'weekly_sessions'),
                         'school_year' => Arr::get($row, 'school_year', '2025-2026'),
+                        'academic_year_id' => $this->academicYearId(Arr::get($row, 'school_year', '2025-2026')),
                         'import_batch_id' => $batch->id,
                         'status' => Arr::get($row, 'status', 'active'),
                     ]
@@ -180,5 +188,55 @@ class SchoolClassImportService
             'school_year' => Arr::get($row, 'school_year', '2025-2026'),
             'class_name' => Arr::get($row, 'class_name'),
         ];
+    }
+
+    private function academicYearId(string $code): ?int
+    {
+        return AcademicYear::firstOrCreate(
+            ['code' => $code],
+            ['start_date' => '2025-09-01', 'end_date' => '2026-05-31', 'is_current' => true],
+        )->id;
+    }
+
+    private function gradeId(int $grade): ?int
+    {
+        if (! $grade) {
+            return null;
+        }
+
+        return Grade::firstOrCreate(
+            ['grade_number' => $grade],
+            ['name' => 'Khối '.$grade, 'status' => 'active'],
+        )->id;
+    }
+
+    private function homeroomTeacherId(?string $name): ?int
+    {
+        $name = trim((string) $name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        $matches = StaffProfile::where('full_name', $name)->limit(2)->get();
+
+        return $matches->count() === 1 ? $matches->first()->id : null;
+    }
+
+    private function homeroomResolutionStatus(?string $name): string
+    {
+        $name = trim((string) $name);
+
+        if ($name === '') {
+            return 'missing';
+        }
+
+        $count = StaffProfile::where('full_name', $name)->limit(2)->count();
+
+        return match ($count) {
+            0 => 'not_found',
+            1 => 'resolved',
+            default => 'needs_manual_review',
+        };
     }
 }

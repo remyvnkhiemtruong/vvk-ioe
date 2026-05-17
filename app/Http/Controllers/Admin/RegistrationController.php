@@ -83,6 +83,11 @@ class RegistrationController extends Controller
     private function assertCanBecomeValid(ExamRegistration $registration, ExamSessionAvailabilityService $availability): void
     {
         if (! $registration->chosenSession) {
+            if (! $registration->exam->requiresSessionChoice()
+                && $availability->isExamTargetForStudent($registration->exam, $registration)) {
+                return;
+            }
+
             throw ValidationException::withMessages(['registration' => 'Đăng ký này chưa chọn ca thi. Vui lòng gán ca trước khi duyệt hoặc khôi phục.']);
         }
 
@@ -103,16 +108,16 @@ class RegistrationController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! $lockedRegistration->exam_session_id) {
-                throw ValidationException::withMessages(['registration' => 'Đăng ký này chưa chọn ca thi. Vui lòng gán ca trước khi duyệt hoặc khôi phục.']);
+            $session = null;
+            if ($lockedRegistration->exam_session_id) {
+                $session = ExamSession::query()
+                    ->whereKey($lockedRegistration->exam_session_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $lockedRegistration->setRelation('chosenSession', $session);
             }
 
-            $session = ExamSession::query()
-                ->whereKey($lockedRegistration->exam_session_id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $lockedRegistration->setRelation('chosenSession', $session);
             $this->assertCanBecomeValid($lockedRegistration, $availability);
 
             $lockedRegistration->update([
@@ -120,7 +125,9 @@ class RegistrationController extends Controller
                 ...$extra,
             ]);
 
-            $availability->refreshFullStatus($session->refresh());
+            if ($session) {
+                $availability->refreshFullStatus($session->refresh());
+            }
         });
     }
 }

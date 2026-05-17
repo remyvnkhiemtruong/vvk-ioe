@@ -6,6 +6,10 @@
             @csrf
             <input name="name" placeholder="Tên kỳ đăng ký" required class="rounded-md border-slate-300 md:col-span-2">
             <input name="school_year" value="2025-2026" required class="rounded-md border-slate-300">
+            <select name="registration_mode" class="rounded-md border-slate-300">
+                <option value="admin_assign_session">Ban tổ chức phân ca sau</option>
+                <option value="student_select_session">Học sinh chọn ca khi đăng ký</option>
+            </select>
             <select name="status" class="rounded-md border-slate-300">
                 @foreach(['draft'=>'Nháp','open'=>'Đang mở','closed'=>'Đã đóng','assigning'=>'Đang phân phòng','locked'=>'Đã khóa danh sách','in_progress'=>'Đang thi','completed'=>'Đã hoàn thành'] as $value=>$label)
                     <option value="{{ $value }}">{{ $label }}</option>
@@ -18,7 +22,7 @@
             <select name="countdown_mode" class="rounded-md border-slate-300"><option value="auto">Countdown tự động</option><option value="open">Đến mở đăng ký</option><option value="close">Đến đóng đăng ký</option><option value="exam">Đến ngày thi</option></select>
             <label class="text-sm"><input type="hidden" name="allow_student_edit" value="0"><input type="checkbox" name="allow_student_edit" value="1" checked> Cho học sinh sửa</label>
             <label class="text-sm"><input type="hidden" name="allow_student_session_change" value="0"><input type="checkbox" name="allow_student_session_change" value="1" checked> Cho đổi ca</label>
-            <label class="text-sm"><input type="hidden" name="require_session_choice" value="0"><input type="checkbox" name="require_session_choice" value="1" checked> Bắt buộc chọn ca</label>
+            <input type="hidden" name="require_session_choice" value="0">
             <label class="text-sm"><input type="hidden" name="allow_personal_computer" value="0"><input type="checkbox" name="allow_personal_computer" value="1" checked> Cho BYOD</label>
             <label class="text-sm"><input type="hidden" name="auto_lock_full_sessions" value="0"><input type="checkbox" name="auto_lock_full_sessions" value="1" checked> Tự khóa ca đầy</label>
             <label class="text-sm"><input type="hidden" name="show_public_stats" value="0"><input type="checkbox" name="show_public_stats" value="1" checked> Thống kê công khai</label>

@@ -13,6 +13,7 @@ class ExamFactory extends Factory
         return [
             'name' => 'IOE cấp trường năm học 2025-2026',
             'school_year' => '2025-2026',
+            'registration_mode' => 'admin_assign_session',
             'level' => 'school',
             'registration_opens_at' => now()->subDay(),
             'registration_closes_at' => now()->addDay(),
@@ -21,7 +22,7 @@ class ExamFactory extends Factory
             'target_grades' => [10, 11, 12],
             'allow_student_edit' => true,
             'allow_student_session_change' => true,
-            'require_session_choice' => true,
+            'require_session_choice' => false,
             'allow_personal_computer' => true,
             'auto_lock_full_sessions' => true,
             'show_public_stats' => true,

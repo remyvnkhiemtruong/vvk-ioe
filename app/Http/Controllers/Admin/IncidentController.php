@@ -39,6 +39,7 @@ class IncidentController extends Controller
             'incident_type' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'solution' => ['nullable', 'string'],
+            'result_impact' => ['nullable', 'in:none,retry_same_session,move_session,use_backup_account,invalid_score,disqualified'],
         ]);
 
         $assignment = isset($data['seat_assignment_id']) ? SeatAssignment::find($data['seat_assignment_id']) : null;
@@ -47,6 +48,10 @@ class IncidentController extends Controller
         Incident::create([
             ...$data,
             'exam_registration_id' => $assignment?->exam_registration_id,
+            'exam_id' => $assignment?->registration?->exam_id,
+            'exam_room_id' => $assignment?->exam_room_id,
+            'exam_session_id' => $assignment?->exam_session_id,
+            'result_impact' => $data['result_impact'] ?? 'none',
             'reported_by' => $request->user()->id,
             'reported_at' => now(),
         ]);

@@ -65,7 +65,14 @@ class ProctorAssignmentController extends Controller
             'user_id.unique' => 'Giám thị này đã được phân công cho cùng ca và phòng thi.',
         ]);
 
-        ProctorAssignment::create($data);
+        $session = ExamSession::findOrFail($data['exam_session_id']);
+
+        ProctorAssignment::create([
+            ...$data,
+            'exam_id' => $session->exam_id,
+            'role_in_room' => $data['role'],
+            'status' => 'active',
+        ]);
 
         return back()->with('success', 'Đã phân công giám thị.');
     }

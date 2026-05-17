@@ -15,6 +15,7 @@
             @if($registration) @method('PUT') @endif
             <input type="hidden" name="exam_id" value="{{ $exam->id }}">
 
+            @if($exam->requiresSessionChoice())
             <section class="rounded-lg border border-slate-200 bg-white p-6">
                 <h2 class="text-lg font-semibold">Thông tin từ hồ sơ học sinh</h2>
                 <p class="mt-1 text-sm text-slate-600">Họ tên, ngày sinh, giới tính, lớp, khối và CCCD/mã định danh không tự sửa tại form này.</p>
@@ -111,6 +112,16 @@
                     @endforelse
                 </div>
             </section>
+            @else
+                <input type="hidden" name="exam_session_id" value="{{ old('exam_session_id', $registration?->exam_session_id) }}">
+                <section class="rounded-lg border border-slate-200 bg-white p-6">
+                    <h2 class="text-lg font-semibold">Ca thi và phòng thi</h2>
+                    <p class="mt-1 text-sm text-slate-600">Kỳ thi này do ban tổ chức phân ca/phòng sau khi duyệt danh sách. Học sinh không cần chọn ca khi gửi đăng ký nội bộ.</p>
+                    <div class="mt-4 rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        Sau khi được duyệt và phân phòng, hệ thống sẽ hiển thị ca thi, phòng thi, số máy và phiếu dự thi trong trang học sinh.
+                    </div>
+                </section>
+            @endif
 
             <section class="rounded-lg border border-slate-200 bg-white p-6">
                 <h2 class="text-lg font-semibold">Máy tính cá nhân</h2>
@@ -161,7 +172,7 @@
                 </label>
                 <x-input-error :messages="$errors->get('confirm_information')" class="mt-2" />
                 <div class="mt-5 flex justify-end">
-                    <x-primary-button :disabled="$availableSessions->isEmpty()">{{ $registration ? 'Cập nhật đăng ký' : 'Gửi đăng ký' }}</x-primary-button>
+                    <x-primary-button :disabled="$exam->requiresSessionChoice() && $availableSessions->isEmpty()">{{ $registration ? 'Cập nhật đăng ký' : 'Gửi đăng ký' }}</x-primary-button>
                 </div>
             </section>
         </form>

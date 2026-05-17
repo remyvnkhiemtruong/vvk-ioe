@@ -18,8 +18,11 @@ class ExamRegistrationFactory extends Factory
         return [
             'student_id' => $student->id,
             'exam_id' => Exam::factory(),
+            'grade_id' => $student->grade_id,
+            'school_class_id' => $student->school_class_id,
             'full_name' => $student->full_name,
             'ioe_id' => fake()->unique()->bothify('ioe####'),
+            'primary_external_account_id' => fake()->unique()->bothify('ioe####'),
             'date_of_birth' => $student->date_of_birth,
             'gender' => $student->gender,
             'identity_number' => $student->identity_number,

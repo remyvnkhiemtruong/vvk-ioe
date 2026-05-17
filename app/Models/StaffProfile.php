@@ -10,15 +10,20 @@ class StaffProfile extends Model
     protected $fillable = [
         'staff_code',
         'identity_number',
+        'ministry_identifier',
         'full_name',
         'date_of_birth',
         'gender',
+        'ethnicity',
         'employment_status',
         'staff_type',
         'position_group',
         'contract_type',
         'qualification',
         'subject',
+        'suggested_role',
+        'role_approved_by',
+        'role_approved_at',
         'user_id',
         'import_batch_id',
         'status',
@@ -28,6 +33,7 @@ class StaffProfile extends Model
     {
         return [
             'date_of_birth' => 'date',
+            'role_approved_at' => 'datetime',
         ];
     }
 

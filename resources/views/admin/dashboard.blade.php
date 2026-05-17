@@ -4,6 +4,8 @@
         @if(session('status'))<div class="rounded bg-emerald-50 p-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <x-stat-card label="Tổng học sinh" :value="$stats['students']" tone="blue" :href="route('admin.students.index')" />
+            <x-stat-card label="Tổng giáo viên/cán bộ" :value="$stats['staff']" tone="blue" :href="route('admin.students.index')" />
+            <x-stat-card label="Tổng lớp học" :value="$stats['classes']" tone="blue" :href="route('admin.students.index')" />
             <x-stat-card label="Tổng đăng ký IOE" :value="$stats['registrations']" tone="emerald" :href="route('admin.registrations.index')" />
             <x-stat-card label="Chờ duyệt" :value="$stats['pending']" tone="amber" :href="route('admin.registrations.index', ['status'=>'submitted'])" />
             <x-stat-card label="Từ chối" :value="$stats['rejected']" tone="rose" :href="route('admin.registrations.index', ['status'=>'rejected'])" />
@@ -19,6 +21,9 @@
             <x-stat-card label="Ca bị khóa" :value="$stats['sessions_locked']" tone="slate" :href="route('admin.sessions.index')" />
             <x-stat-card label="Đã nhập điểm" :value="$stats['scores_entered']" tone="emerald" :href="route('admin.scores.index')" />
             <x-stat-card label="Chưa nhập điểm" :value="$stats['scores_missing']" tone="rose" :href="route('admin.scores.index')" />
+            <x-stat-card label="Thiếu checklist" :value="$stats['missing_checklists']" tone="amber" :href="route('admin.monitoring.index')" />
+            <x-stat-card label="Thiếu BBT" :value="$stats['missing_minutes']" tone="amber" :href="route('admin.monitoring.index')" />
+            <x-stat-card label="Thiếu video" :value="$stats['missing_videos']" tone="amber" :href="route('admin.monitoring.index')" />
         </div>
 
         <section class="rounded-lg border border-slate-200 bg-white p-5">

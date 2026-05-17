@@ -28,7 +28,7 @@ class StoreExamRegistrationRequest extends FormRequest
 
         return [
             'exam_id' => ['nullable', 'exists:exams,id'],
-            'exam_session_id' => [($exam?->require_session_choice ?? true) ? 'required' : 'nullable', 'exists:exam_sessions,id'],
+            'exam_session_id' => [($exam?->requiresSessionChoice() ?? false) ? 'required' : 'nullable', 'exists:exam_sessions,id'],
             'full_name' => ['nullable', 'string', 'max:255'],
             'ioe_id' => [
                 'required',
@@ -38,6 +38,9 @@ class StoreExamRegistrationRequest extends FormRequest
                     ->where('exam_id', $exam?->id)
                     ->ignore($registrationId),
             ],
+            'primary_external_username' => ['nullable', 'string', 'max:255'],
+            'backup_external_account_id' => ['nullable', 'string', 'max:100', 'different:ioe_id'],
+            'backup_external_username' => ['nullable', 'string', 'max:255'],
             'date_of_birth' => ['required', 'date', 'before:today'],
             'gender' => ['required', Rule::in(['Nam', 'Nữ', 'Khác', 'nam', 'nữ', 'khác', 'male', 'female', 'other'])],
             'identity_number' => [
@@ -82,12 +85,24 @@ class StoreExamRegistrationRequest extends FormRequest
             $student = $this->user()?->student;
             $session = $this->input('exam_session_id') ? ExamSession::find($this->input('exam_session_id')) : null;
 
-            if (! $exam || ! $student || ! $session) {
+            if (! $exam || ! $student) {
                 return;
             }
 
             if ($this->boolean('uses_personal_computer') && ! $exam->allow_personal_computer) {
                 $validator->errors()->add('uses_personal_computer', 'Kỳ đăng ký này chưa cho phép đăng ký máy tính cá nhân.');
+            }
+
+            if (filled($this->input('backup_external_account_id')) && ! $exam->allowsBackupAccount()) {
+                $validator->errors()->add('backup_external_account_id', 'Kỳ thi này chưa bật tài khoản dự phòng.');
+            }
+
+            if (! $session) {
+                if (! $exam->requiresSessionChoice() && ! app(ExamSessionAvailabilityService::class)->isExamTargetForStudent($exam, $student)) {
+                    $validator->errors()->add('exam_id', 'Lớp/khối của bạn không thuộc đối tượng đăng ký kỳ thi này.');
+                }
+
+                return;
             }
 
             $error = app(ExamSessionAvailabilityService::class)

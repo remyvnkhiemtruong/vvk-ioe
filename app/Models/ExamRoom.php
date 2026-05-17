@@ -10,7 +10,26 @@ class ExamRoom extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['room_code', 'room_name', 'location', 'usable_computers', 'backup_computers', 'note', 'status'];
+    protected $fillable = [
+        'exam_id',
+        'room_code',
+        'room_name',
+        'location',
+        'capacity',
+        'computer_count',
+        'headset_count',
+        'camera_available',
+        'internet_status',
+        'usable_computers',
+        'backup_computers',
+        'note',
+        'status',
+    ];
+
+    protected function casts(): array
+    {
+        return ['camera_available' => 'boolean'];
+    }
 
     public function computers(): HasMany
     {

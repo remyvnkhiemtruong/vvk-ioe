@@ -18,10 +18,10 @@
             </a>
             <nav class="hidden flex-wrap items-center gap-2 text-sm font-medium md:flex">
                 <a href="{{ route('home') }}" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Trang chủ</a>
-                <a href="#gioi-thieu" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Giới thiệu</a>
-                <a href="#thoi-gian" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Thời gian đăng ký</a>
-                <a href="#huong-dan" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Hướng dẫn</a>
-                <a href="#lien-he" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Liên hệ</a>
+                <a href="{{ route('home') }}#gioi-thieu" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Giới thiệu</a>
+                <a href="{{ route('home') }}#thoi-gian" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Thời gian đăng ký</a>
+                <a href="{{ route('home') }}#huong-dan" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Hướng dẫn</a>
+                <a href="{{ route('home') }}#lien-he" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Liên hệ</a>
                 <a href="{{ route('login') }}" class="rounded border border-slate-300 px-3 py-2 text-slate-700 hover:bg-slate-50">Đăng nhập</a>
                 <a href="{{ route('register') }}" class="rounded bg-emerald-700 px-3 py-2 text-white hover:bg-emerald-800">Tạo tài khoản học sinh</a>
             </nav>

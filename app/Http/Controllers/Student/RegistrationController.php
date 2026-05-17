@@ -27,7 +27,7 @@ class RegistrationController extends Controller
                 ->first()
             : null;
 
-        $availableSessions = $student && $exam && $exam->isRegistrationOpen() && ! $registration
+        $availableSessions = $student && $exam && $exam->isRegistrationOpen() && ! $registration && $exam->requiresSessionChoice()
             ? $availability->availableForStudent($student, $exam)
             : collect();
 
@@ -49,7 +49,7 @@ class RegistrationController extends Controller
             'exam' => $exam,
             'student' => $student,
             'registration' => null,
-            'availableSessions' => $availability->availableForStudent($student, $exam),
+            'availableSessions' => $exam->requiresSessionChoice() ? $availability->availableForStudent($student, $exam) : collect(),
         ]);
     }
 
@@ -112,7 +112,7 @@ class RegistrationController extends Controller
 
     private function ensureSchoolOpen(Exam $exam): void
     {
-        if ($exam->level !== 'school' || ! $exam->isRegistrationOpen()) {
+        if (! in_array($exam->level, ['school', 'truong'], true) || ! $exam->isRegistrationOpen()) {
             abort(403, 'Kỳ đăng ký cấp trường chưa mở hoặc đã đóng.');
         }
     }
@@ -157,7 +157,7 @@ class RegistrationController extends Controller
             return 'Lớp/khối của bạn không thuộc đối tượng đăng ký kỳ thi này.';
         }
 
-        if ($availableSessionCount === 0) {
+        if ($exam->requiresSessionChoice() && $availableSessionCount === 0) {
             return 'Hiện chưa có ca thi phù hợp hoặc còn chỗ cho khối/lớp của bạn. Vui lòng liên hệ giáo viên phụ trách.';
         }
 

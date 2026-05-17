@@ -16,11 +16,18 @@ class ExamSession extends Model
         'exam_id',
         'exam_room_id',
         'name',
+        'session_name',
+        'session_date',
+        'starts_at',
+        'ends_at',
         'exam_date',
         'start_time',
         'end_time',
         'target_grade',
         'target_classes',
+        'allowed_grades',
+        'session_code',
+        'code_visible_from',
         'max_candidates',
         'status',
         'note',
@@ -30,7 +37,12 @@ class ExamSession extends Model
     {
         return [
             'exam_date' => 'date',
+            'session_date' => 'date',
+            'starts_at' => 'datetime',
+            'ends_at' => 'datetime',
             'target_classes' => 'array',
+            'allowed_grades' => 'array',
+            'code_visible_from' => 'datetime',
         ];
     }
 

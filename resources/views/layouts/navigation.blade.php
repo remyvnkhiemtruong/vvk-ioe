@@ -34,6 +34,9 @@
                         @can('checkins.manage')
                             <x-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.checkins.index') : route('admin.checkins.index')" :active="request()->routeIs('admin.checkins.*') || request()->routeIs('proctor.checkins.*')">Check-in</x-nav-link>
                         @endcan
+                        @can('attendance.manage')
+                            <x-nav-link :href="route('admin.monitoring.index')" :active="request()->routeIs('admin.monitoring.*')">Giám sát</x-nav-link>
+                        @endcan
                         @can('research.manage')
                             <x-nav-link :href="route('admin.research.index')" :active="request()->routeIs('admin.research.*')">Nghiên cứu IOE</x-nav-link>
                         @endcan
@@ -87,6 +90,7 @@
             @can('form.manage')<x-responsive-nav-link :href="route('admin.form_fields.index')">Form đăng ký</x-responsive-nav-link>@endcan
             @can('assignments.manage')<x-responsive-nav-link :href="route('admin.assignments.index')">Phân phòng</x-responsive-nav-link><x-responsive-nav-link :href="route('admin.proctors.index')">Giám thị</x-responsive-nav-link>@endcan
             @can('checkins.manage')<x-responsive-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.checkins.index') : route('admin.checkins.index')">Check-in</x-responsive-nav-link>@endcan
+            @can('attendance.manage')<x-responsive-nav-link :href="route('admin.monitoring.index')">Giám sát</x-responsive-nav-link>@endcan
             @can('settings.manage')<x-responsive-nav-link :href="route('admin.settings.index')">Cài đặt</x-responsive-nav-link>@endcan
         </div>
         <div class="border-t border-gray-200 pb-1 pt-4">

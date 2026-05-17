@@ -38,14 +38,25 @@ class DatabaseSeeder extends Seeder
             'rooms.manage',
             'sessions.manage',
             'sessions.override_grade_restriction',
+            'exam_codes.view',
+            'exam_codes.update',
             'assignments.manage',
             'assignments.lock',
+            'rooms.assign',
             'checkins.manage',
+            'attendance.manage',
             'incidents.manage',
             'scores.enter',
             'scores.verify',
             'scores.lock',
             'scores.unlock',
+            'results.enter',
+            'results.review',
+            'results.lock',
+            'minutes.generate',
+            'minutes.upload',
+            'minutes.review',
+            'reports.export',
             'exports.manage',
             'research.manage',
             'users.manage',
@@ -58,11 +69,16 @@ class DatabaseSeeder extends Seeder
         }
 
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        $examAdmin = Role::firstOrCreate(['name' => 'exam_admin', 'guard_name' => 'web']);
         $teacher = Role::firstOrCreate(['name' => 'teacher', 'guard_name' => 'web']);
         $proctor = Role::firstOrCreate(['name' => 'proctor', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'viewer', 'guard_name' => 'web']);
 
         $admin->syncPermissions($permissions);
+        $superAdmin->syncPermissions($permissions);
+        $examAdmin->syncPermissions($permissions);
         $teacher->syncPermissions([
             'dashboard.view',
             'students.view',
@@ -78,14 +94,21 @@ class DatabaseSeeder extends Seeder
             'assignments.manage',
             'assignments.lock',
             'checkins.manage',
+            'attendance.manage',
             'incidents.manage',
             'scores.enter',
             'scores.verify',
             'scores.lock',
+            'results.enter',
+            'results.review',
+            'minutes.generate',
+            'minutes.upload',
+            'minutes.review',
             'exports.manage',
+            'reports.export',
             'research.manage',
         ]);
-        $proctor->syncPermissions(['checkins.manage', 'incidents.manage', 'scores.enter']);
+        $proctor->syncPermissions(['checkins.manage', 'attendance.manage', 'incidents.manage', 'scores.enter', 'results.enter']);
 
         $adminUser = User::updateOrCreate([
             'email' => 'admin@example.test',
@@ -103,10 +126,14 @@ class DatabaseSeeder extends Seeder
             'school_year' => '2025-2026',
         ], [
             'level' => 'school',
+            'registration_mode' => 'admin_assign_session',
+            'template_type' => 'truong',
+            'external_platform_name' => 'IOE',
+            'organizer_scope' => 'school',
             'target_grades' => [10, 11, 12],
             'allow_student_edit' => true,
             'allow_student_session_change' => true,
-            'require_session_choice' => true,
+            'require_session_choice' => false,
             'allow_personal_computer' => true,
             'auto_lock_full_sessions' => true,
             'show_public_stats' => true,
@@ -133,7 +160,7 @@ class DatabaseSeeder extends Seeder
         ];
 
         array_splice($defaultFields, 7, 0, [
-            ['exam_session_id', 'Chon ca thi mong muon', 'radio', true, true],
+            ['exam_session_id', 'Ca thi mong muon', 'radio', true, false],
         ]);
 
         foreach ($defaultFields as $index => [$key, $label, $type, $enabled, $required]) {

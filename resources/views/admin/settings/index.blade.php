@@ -37,6 +37,10 @@
                 <div class="mt-4 grid gap-4 md:grid-cols-4">
                     <input name="exam[name]" value="{{ old('exam.name', $exam->name) }}" required placeholder="Tên kỳ" class="rounded-md border-slate-300 md:col-span-2">
                     <input name="exam[school_year]" value="{{ old('exam.school_year', $exam->school_year) }}" required placeholder="Năm học" class="rounded-md border-slate-300">
+                    <select name="exam[registration_mode]" class="rounded-md border-slate-300">
+                        <option value="admin_assign_session" @selected(old('exam.registration_mode', $exam->registration_mode ?? 'admin_assign_session') === 'admin_assign_session')>Ban tổ chức phân ca sau</option>
+                        <option value="student_select_session" @selected(old('exam.registration_mode', $exam->registration_mode ?? 'admin_assign_session') === 'student_select_session')>Học sinh chọn ca khi đăng ký</option>
+                    </select>
                     <select name="exam[status]" class="rounded-md border-slate-300">
                         @foreach(['draft'=>'Nháp','open'=>'Đang mở','closed'=>'Đã đóng','assigning'=>'Đang phân phòng','locked'=>'Đã khóa danh sách','in_progress'=>'Đang thi','completed'=>'Đã hoàn thành'] as $value=>$label)
                             <option value="{{ $value }}" @selected(old('exam.status', $exam->status)===$value)>{{ $label }}</option>
@@ -61,7 +65,6 @@
                     @foreach([
                         'allow_student_edit' => 'Cho học sinh chỉnh sửa trước hạn',
                         'allow_student_session_change' => 'Cho học sinh đổi ca trước hạn',
-                        'require_session_choice' => 'Bắt buộc học sinh chọn ca thi',
                         'allow_personal_computer' => 'Cho đăng ký máy tính cá nhân',
                         'auto_lock_full_sessions' => 'Tự khóa ca khi đủ số lượng',
                         'show_public_stats' => 'Hiển thị thống kê công khai',

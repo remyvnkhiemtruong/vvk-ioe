@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\AcademicYear;
+use App\Models\Grade;
 use App\Models\ImportBatch;
+use App\Models\SchoolClass;
 use App\Models\Student;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -19,7 +22,16 @@ class StudentImportService
         'identity_number' => ['Mã định danh bộ GD&ĐT', 'Mã định danh', 'Ma dinh danh', 'CCCD', 'Số CCCD'],
         'date_of_birth' => ['Ngày sinh', 'Ngay sinh', 'DOB'],
         'gender' => ['Giới tính', 'Gioi tinh', 'Gender'],
+        'ethnicity' => ['Dân tộc', 'Dan toc'],
         'source_status' => ['Trạng thái', 'Trang thai', 'Status'],
+        'health_check' => ['Kiểm tra sức khỏe dinh dưỡng', 'Kiem tra suc khoe dinh duong'],
+        'height_1' => ['Chiều cao kì 1', 'Chiều cao kỳ 1', 'Chieu cao ki 1'],
+        'height_2' => ['Chiều cao kì 2', 'Chiều cao kỳ 2', 'Chieu cao ki 2'],
+        'weight_1' => ['Cân nặng kì 1', 'Cân nặng kỳ 1', 'Can nang ki 1'],
+        'weight_2' => ['Cân nặng kì 2', 'Cân nặng kỳ 2', 'Can nang ki 2'],
+        'eye_disease' => ['Bệnh về mắt', 'Benh ve mat'],
+        'swim_1' => ['Biết bơi kỳ 1', 'Biet boi ky 1'],
+        'swim_2' => ['Biết bơi kỳ 2', 'Biet boi ky 2'],
     ];
 
     public function preview(UploadedFile $file, array $mapping = []): ImportBatch
@@ -31,14 +43,14 @@ class StudentImportService
         ));
     }
 
-    public function previewPath(string $path, ?string $fileName = null, array $mapping = []): ImportBatch
+    public function previewPath(string $path, ?string $fileName = null, array $mapping = [], ?int $headerRow = null): ImportBatch
     {
-        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path), $mapping));
+        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path), $mapping, $headerRow));
     }
 
-    public function analyzePath(string $path, ?string $fileName = null, array $mapping = []): array
+    public function analyzePath(string $path, ?string $fileName = null, array $mapping = [], ?int $headerRow = null): array
     {
-        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 5);
+        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 5, $headerRow);
         $headers = $table['headers'];
         $mapping = $mapping ?: $table['mapping'];
         $preview = [];
@@ -56,6 +68,7 @@ class StudentImportService
             $payload['date_of_birth'] = SpreadsheetTable::parseDate($payload['date_of_birth'] ?? null);
             $payload['grade'] = $this->grade($payload);
             $payload['status'] = SpreadsheetTable::activeStatusFromText($payload['source_status'] ?? null);
+            $payload['health_metadata'] = $this->healthMetadata($payload);
             unset($payload['source_status']);
 
             $rowNumber = $row['row_number'];
@@ -98,6 +111,7 @@ class StudentImportService
             'type' => 'students',
             'file_name' => $fileName ?? basename($path),
             'status' => 'preview',
+            'header_row' => $table['header_row'],
             'total_rows' => count($preview),
             'valid_rows' => count($preview) - count($errors),
             'invalid_rows' => count($errors),
@@ -126,8 +140,14 @@ class StudentImportService
                         'class_name' => Arr::get($row, 'class_name'),
                         'student_code' => Arr::get($row, 'student_code'),
                         'identity_number' => Arr::get($row, 'identity_number'),
+                        'ministry_identifier' => Arr::get($row, 'identity_number'),
                         'date_of_birth' => Arr::get($row, 'date_of_birth') ?: null,
                         'gender' => Arr::get($row, 'gender'),
+                        'ethnicity' => Arr::get($row, 'ethnicity'),
+                        'academic_year_id' => $this->academicYearId('2025-2026'),
+                        'grade_id' => $this->gradeId((int) Arr::get($row, 'grade')),
+                        'school_class_id' => $this->schoolClassId((string) Arr::get($row, 'class_name')),
+                        'health_metadata' => Arr::get($row, 'health_metadata'),
                         'import_batch_id' => $batch->id,
                         'status' => Arr::get($row, 'status', 'active'),
                     ]
@@ -165,6 +185,7 @@ class StudentImportService
             'identity_number' => ['nullable', 'string', 'max:20'],
             'date_of_birth' => ['nullable', 'date'],
             'gender' => ['nullable', 'string', 'max:20'],
+            'ethnicity' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
         ]);
 
@@ -200,5 +221,42 @@ class StudentImportService
         }
 
         return ['identity_number' => Arr::get($row, 'identity_number')];
+    }
+
+    private function healthMetadata(array $payload): array
+    {
+        return collect($payload)
+            ->only(['health_check', 'height_1', 'height_2', 'weight_1', 'weight_2', 'eye_disease', 'swim_1', 'swim_2'])
+            ->filter(fn ($value) => filled($value))
+            ->all();
+    }
+
+    private function academicYearId(string $code): ?int
+    {
+        return AcademicYear::firstOrCreate(
+            ['code' => $code],
+            ['start_date' => '2025-09-01', 'end_date' => '2026-05-31', 'is_current' => true],
+        )->id;
+    }
+
+    private function gradeId(int $grade): ?int
+    {
+        if (! $grade) {
+            return null;
+        }
+
+        return Grade::firstOrCreate(
+            ['grade_number' => $grade],
+            ['name' => 'Khối '.$grade, 'status' => 'active'],
+        )->id;
+    }
+
+    private function schoolClassId(string $className): ?int
+    {
+        if (blank($className)) {
+            return null;
+        }
+
+        return SchoolClass::where('class_name', $className)->latest()->value('id');
     }
 }

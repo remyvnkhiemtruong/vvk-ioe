@@ -11,11 +11,11 @@ use Throwable;
 
 class SpreadsheetTable
 {
-    public static function read(string $path, array $fieldAliases, int $minimumMatches = 3): array
+    public static function read(string $path, array $fieldAliases, int $minimumMatches = 3, ?int $headerRow = null): array
     {
         $sheet = IOFactory::load($path)->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, false);
-        $headerIndex = self::detectHeaderIndex($rows, $fieldAliases, $minimumMatches);
+        $headerIndex = $headerRow ? max($headerRow - 1, 0) : self::detectHeaderIndex($rows, $fieldAliases, $minimumMatches);
         $headers = array_map(fn ($value) => self::normalizeHeader((string) $value), $rows[$headerIndex] ?? []);
 
         $dataRows = [];

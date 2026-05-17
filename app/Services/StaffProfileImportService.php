@@ -16,6 +16,7 @@ class StaffProfileImportService
         'full_name' => ['Họ và tên', 'Ho va ten'],
         'date_of_birth' => ['Ngày sinh', 'Ngay sinh'],
         'gender' => ['Giới tính', 'Gioi tinh'],
+        'ethnicity' => ['Dân tộc', 'Dan toc'],
         'employment_status' => ['Trạng thái', 'Trang thai'],
         'staff_type' => ['Loại cán bộ', 'Loai can bo'],
         'position_group' => ['Nhóm chức vụ', 'Nhom chuc vu'],
@@ -24,14 +25,14 @@ class StaffProfileImportService
         'subject' => ['Môn dạy', 'Mon day'],
     ];
 
-    public function previewPath(string $path, ?string $fileName = null): ImportBatch
+    public function previewPath(string $path, ?string $fileName = null, ?int $headerRow = null): ImportBatch
     {
-        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path)));
+        return $this->createBatch($this->analyzePath($path, $fileName ?? basename($path), $headerRow));
     }
 
-    public function analyzePath(string $path, ?string $fileName = null): array
+    public function analyzePath(string $path, ?string $fileName = null, ?int $headerRow = null): array
     {
-        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 5);
+        $table = SpreadsheetTable::read($path, self::FIELD_ALIASES, 5, $headerRow);
         $headers = $table['headers'];
         $mapping = $table['mapping'];
         $preview = [];
@@ -48,6 +49,7 @@ class StaffProfileImportService
 
             $payload['date_of_birth'] = SpreadsheetTable::parseDate($payload['date_of_birth'] ?? null);
             $payload['status'] = SpreadsheetTable::activeStatusFromText($payload['employment_status'] ?? null);
+            $payload['suggested_role'] = $this->suggestRole($payload);
 
             $rowNumber = $row['row_number'];
             $validator = $this->validator($payload);
@@ -87,6 +89,7 @@ class StaffProfileImportService
             'type' => 'staff_profiles',
             'file_name' => $fileName ?? basename($path),
             'status' => 'preview',
+            'header_row' => $table['header_row'],
             'total_rows' => count($preview),
             'valid_rows' => count($preview) - count($errors),
             'invalid_rows' => count($errors),
@@ -112,15 +115,18 @@ class StaffProfileImportService
                     [
                         'staff_code' => Arr::get($row, 'staff_code'),
                         'identity_number' => Arr::get($row, 'identity_number'),
+                        'ministry_identifier' => Arr::get($row, 'identity_number'),
                         'full_name' => Arr::get($row, 'full_name'),
                         'date_of_birth' => Arr::get($row, 'date_of_birth'),
                         'gender' => Arr::get($row, 'gender'),
+                        'ethnicity' => Arr::get($row, 'ethnicity'),
                         'employment_status' => Arr::get($row, 'employment_status'),
                         'staff_type' => Arr::get($row, 'staff_type'),
                         'position_group' => Arr::get($row, 'position_group'),
                         'contract_type' => Arr::get($row, 'contract_type'),
                         'qualification' => Arr::get($row, 'qualification'),
                         'subject' => Arr::get($row, 'subject'),
+                        'suggested_role' => Arr::get($row, 'suggested_role'),
                         'import_batch_id' => $batch->id,
                         'status' => Arr::get($row, 'status', 'active'),
                     ]
@@ -150,12 +156,13 @@ class StaffProfileImportService
             'full_name' => ['required', 'string', 'max:255'],
             'date_of_birth' => ['nullable', 'date'],
             'gender' => ['nullable', 'string', 'max:20'],
+            'ethnicity' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'string', 'in:active,inactive'],
         ]);
 
         $validator->after(function ($validator) use ($payload) {
-            if (blank($payload['staff_code'] ?? null) && blank($payload['identity_number'] ?? null)) {
-                $validator->errors()->add('staff_code', 'Mỗi dòng phải có mã cán bộ hoặc mã định danh.');
+            if (blank($payload['staff_code'] ?? null) && blank($payload['identity_number'] ?? null) && blank($payload['full_name'] ?? null)) {
+                $validator->errors()->add('staff_code', 'Mỗi dòng phải có mã cán bộ hoặc họ tên để đối chiếu.');
             }
         });
 
@@ -168,6 +175,32 @@ class StaffProfileImportService
             return ['staff_code' => Arr::get($row, 'staff_code')];
         }
 
-        return ['identity_number' => Arr::get($row, 'identity_number')];
+        if (filled(Arr::get($row, 'identity_number'))) {
+            return ['identity_number' => Arr::get($row, 'identity_number')];
+        }
+
+        return [
+            'full_name' => Arr::get($row, 'full_name'),
+            'date_of_birth' => Arr::get($row, 'date_of_birth'),
+        ];
+    }
+
+    private function suggestRole(array $payload): ?string
+    {
+        $text = SpreadsheetTable::normalizeHeader(implode(' ', [
+            $payload['staff_type'] ?? '',
+            $payload['position_group'] ?? '',
+            $payload['subject'] ?? '',
+        ]));
+
+        if (str_contains($text, 'giao vien') || filled($payload['subject'] ?? null)) {
+            return 'teacher';
+        }
+
+        if (str_contains($text, 'giam thi')) {
+            return 'proctor';
+        }
+
+        return null;
     }
 }

@@ -138,7 +138,9 @@ class SeatAssignmentService
             ->where('exam_room_id', $room->id)
             ->count();
 
-        if ($existingCount + $registrations->count() > $session->max_candidates) {
+        $roomCapacity = (int) ($room->capacity ?: $room->usable_computers ?: $session->max_candidates);
+
+        if ($existingCount + $registrations->count() > $session->max_candidates || $existingCount + $registrations->count() > $roomCapacity) {
             throw ValidationException::withMessages(['max_candidates' => 'Số thí sinh vượt quá số lượng tối đa của ca thi.']);
         }
 

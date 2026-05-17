@@ -14,13 +14,25 @@ class Exam extends Model
     protected $fillable = [
         'name',
         'school_year',
+        'academic_year_id',
         'level',
+        'template_type',
+        'external_platform_name',
+        'registration_mode',
+        'organizer_scope',
         'registration_opens_at',
         'registration_closes_at',
+        'registration_start_at',
+        'registration_end_at',
         'exam_date',
         'exam_time',
+        'exam_start_at',
+        'exam_end_at',
         'target_grades',
         'target_classes',
+        'max_score_rule',
+        'result_source',
+        'settings',
         'allow_student_edit',
         'allow_student_session_change',
         'require_session_choice',
@@ -40,10 +52,16 @@ class Exam extends Model
         return [
             'registration_opens_at' => 'datetime',
             'registration_closes_at' => 'datetime',
+            'registration_start_at' => 'datetime',
+            'registration_end_at' => 'datetime',
             'exam_date' => 'date',
             'exam_time' => 'datetime:H:i',
+            'exam_start_at' => 'datetime',
+            'exam_end_at' => 'datetime',
             'target_grades' => 'array',
             'target_classes' => 'array',
+            'max_score_rule' => 'array',
+            'settings' => 'array',
             'allow_student_edit' => 'boolean',
             'allow_student_session_change' => 'boolean',
             'require_session_choice' => 'boolean',
@@ -73,10 +91,24 @@ class Exam extends Model
 
     public function isRegistrationOpen(): bool
     {
-        return $this->level === 'school'
+        $opensAt = $this->registration_start_at ?? $this->registration_opens_at;
+        $closesAt = $this->registration_end_at ?? $this->registration_closes_at;
+
+        return in_array($this->level, ['school', 'truong'], true)
             && $this->status === 'open'
-            && (! $this->registration_opens_at || now()->greaterThanOrEqualTo($this->registration_opens_at))
-            && (! $this->registration_closes_at || now()->lessThanOrEqualTo($this->registration_closes_at));
+            && (! $opensAt || now()->greaterThanOrEqualTo($opensAt))
+            && (! $closesAt || now()->lessThanOrEqualTo($closesAt));
+    }
+
+    public function requiresSessionChoice(): bool
+    {
+        return ($this->registration_mode ?? null) === 'student_select_session'
+            || ((bool) $this->require_session_choice && blank($this->registration_mode));
+    }
+
+    public function allowsBackupAccount(): bool
+    {
+        return (bool) data_get($this->settings, 'allow_backup_account', false);
     }
 
     public function examDateTime(): ?Carbon

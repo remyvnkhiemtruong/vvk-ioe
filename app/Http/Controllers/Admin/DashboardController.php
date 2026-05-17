@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Models\ExamChecklist;
+use App\Models\ExamMinute;
 use App\Models\ExamRegistration;
 use App\Models\ExamScore;
 use App\Models\ExamSession;
 use App\Models\Incident;
 use App\Models\RoomComputer;
+use App\Models\SchoolClass;
 use App\Models\SeatAssignment;
+use App\Models\StaffProfile;
 use App\Models\Student;
+use App\Models\VideoEvidence;
 use App\Services\ExamSessionAvailabilityService;
 use Illuminate\View\View;
 
@@ -37,6 +42,8 @@ class DashboardController extends Controller
             'exam' => $exam,
             'stats' => [
                 'students' => Student::count(),
+                'staff' => StaffProfile::count(),
+                'classes' => SchoolClass::count(),
                 'registrations' => (clone $registrations)->count(),
                 'approved' => (clone $registrations)->where('status', 'approved')->count(),
                 'pending' => (clone $registrations)->whereIn('status', ['submitted', 'pending'])->count(),
@@ -57,6 +64,9 @@ class DashboardController extends Controller
                 'missing_session' => (clone $registrations)->whereNull('exam_session_id')->count(),
                 'wrong_session' => $wrongSessions,
                 'broken_computers' => RoomComputer::whereIn('status', ['broken', 'maintenance'])->count(),
+                'missing_checklists' => $examId ? $this->missingByRoomSession($examId, ExamChecklist::class) : 0,
+                'missing_minutes' => $examId ? $this->missingByRoomSession($examId, ExamMinute::class) : 0,
+                'missing_videos' => $examId ? $this->missingByRoomSession($examId, VideoEvidence::class) : 0,
             ],
             'gradeCounts' => ExamRegistration::selectRaw('class_name, count(*) as total')
                 ->when($examId, fn ($q) => $q->where('exam_id', $examId))
@@ -65,5 +75,23 @@ class DashboardController extends Controller
                 ->get(),
             'nearlyFullSessions' => $sessions->filter(fn (ExamSession $session) => $session->status === 'open' && $availability->remainingSlots($session) <= 3)->values(),
         ]);
+    }
+
+    private function missingByRoomSession(int $examId, string $modelClass): int
+    {
+        $scopes = SeatAssignment::whereHas('registration', fn ($query) => $query->where('exam_id', $examId))
+            ->select('exam_session_id', 'exam_room_id')
+            ->distinct()
+            ->get();
+
+        $existing = $modelClass::query()
+            ->where('exam_id', $examId)
+            ->get(['exam_session_id', 'exam_room_id'])
+            ->map(fn ($item) => $item->exam_session_id.'|'.$item->exam_room_id)
+            ->all();
+
+        return $scopes
+            ->filter(fn ($scope) => ! in_array($scope->exam_session_id.'|'.$scope->exam_room_id, $existing, true))
+            ->count();
     }
 }

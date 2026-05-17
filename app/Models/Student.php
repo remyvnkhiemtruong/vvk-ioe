@@ -16,15 +16,21 @@ class Student extends Model
     protected $fillable = [
         'full_name',
         'grade',
+        'grade_id',
         'class_name',
+        'school_class_id',
+        'academic_year_id',
         'student_code',
         'identity_number',
+        'ministry_identifier',
         'date_of_birth',
         'gender',
+        'ethnicity',
         'phone',
         'email',
         'address',
         'note',
+        'health_metadata',
         'import_batch_id',
         'status',
     ];
@@ -34,6 +40,7 @@ class Student extends Model
         return [
             'date_of_birth' => 'date',
             'grade' => 'integer',
+            'health_metadata' => 'array',
         ];
     }
 
@@ -50,6 +57,21 @@ class Student extends Model
     public function importBatch(): BelongsTo
     {
         return $this->belongsTo(ImportBatch::class);
+    }
+
+    public function gradeModel(): BelongsTo
+    {
+        return $this->belongsTo(Grade::class, 'grade_id');
+    }
+
+    public function schoolClass(): BelongsTo
+    {
+        return $this->belongsTo(SchoolClass::class);
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
     }
 
     public function maskedIdentity(): string

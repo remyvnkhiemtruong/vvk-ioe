@@ -8,11 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Incident extends Model
 {
     protected $fillable = [
+        'exam_id',
+        'exam_room_id',
+        'exam_session_id',
+        'exam_time_window_id',
         'seat_assignment_id',
         'exam_registration_id',
         'incident_type',
         'description',
         'solution',
+        'result_impact',
+        'attachment_path',
         'old_computer_id',
         'new_computer_id',
         'reported_by',

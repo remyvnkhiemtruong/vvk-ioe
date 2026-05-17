@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ExamController;
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\FormFieldController;
 use App\Http\Controllers\Admin\IncidentController;
+use App\Http\Controllers\Admin\MonitoringController;
 use App\Http\Controllers\Admin\PasswordResetRequestController;
 use App\Http\Controllers\Admin\ProctorAssignmentController;
 use App\Http\Controllers\Admin\RegistrationController as AdminRegistrationController;
@@ -33,7 +34,7 @@ Route::get('/dashboard', function () {
     $user = auth()->user();
 
     return match ($user?->role) {
-        'admin', 'teacher' => redirect()->route('admin.dashboard'),
+        'admin', 'super_admin', 'exam_admin', 'teacher' => redirect()->route('admin.dashboard'),
         'proctor' => redirect()->route('proctor.dashboard'),
         default => redirect()->route('student.dashboard'),
     };
@@ -57,7 +58,7 @@ Route::middleware(['auth', 'role:student'])->prefix('student')->name('student.')
     Route::get('/registrations/{registration}/ticket', [StudentRegistrationController::class, 'ticket'])->name('registrations.ticket');
 });
 
-Route::middleware(['auth', 'role:admin|teacher'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:admin|super_admin|exam_admin|teacher'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->middleware('permission:dashboard.view')->name('dashboard');
 
     Route::get('/settings', [SettingsController::class, 'index'])->middleware('permission:settings.manage')->name('settings.index');
@@ -116,6 +117,11 @@ Route::middleware(['auth', 'role:admin|teacher'])->prefix('admin')->name('admin.
 
     Route::get('/incidents', [IncidentController::class, 'index'])->middleware('permission:incidents.manage')->name('incidents.index');
     Route::post('/incidents', [IncidentController::class, 'store'])->middleware('permission:incidents.manage')->name('incidents.store');
+
+    Route::get('/monitoring', [MonitoringController::class, 'index'])->middleware('permission:attendance.manage')->name('monitoring.index');
+    Route::post('/monitoring/checklist', [MonitoringController::class, 'checklist'])->middleware('permission:attendance.manage')->name('monitoring.checklist');
+    Route::post('/monitoring/minutes', [MonitoringController::class, 'minute'])->middleware('permission:minutes.upload')->name('monitoring.minute');
+    Route::post('/monitoring/videos', [MonitoringController::class, 'video'])->middleware('permission:minutes.upload')->name('monitoring.video');
 
     Route::get('/scores', [ScoreController::class, 'index'])->middleware('permission:scores.enter')->name('scores.index');
     Route::post('/scores/{registration}', [ScoreController::class, 'store'])->middleware('permission:scores.enter')->name('scores.store');
