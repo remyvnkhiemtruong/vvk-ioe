@@ -17,10 +17,17 @@ class SessionController extends Controller
 {
     public function index(ExamSessionAvailabilityService $availability): View
     {
-        $sessions = ExamSession::with(['exam', 'room'])
-            ->withCount(['registrations as valid_registrations_count' => fn ($query) => $query->whereIn('status', ExamSessionAvailabilityService::VALID_REGISTRATION_STATUSES)])
-            ->latest()
-            ->paginate(15);
+        $user = auth()->user();
+
+        // Teacher chỉ thấy ca thi do mình tạo; admin/exam_admin thấy tất cả
+        $query = ExamSession::with(['exam', 'room', 'createdBy'])
+            ->withCount(['registrations as valid_registrations_count' => fn ($q) => $q->whereIn('status', ExamSessionAvailabilityService::VALID_REGISTRATION_STATUSES)]);
+
+        if ($user && ! $user->isAdmin() && $user->isTeacher()) {
+            $query->where('created_by', $user->id);
+        }
+
+        $sessions = $query->latest()->paginate(15);
 
         $sessions->getCollection()->each(function (ExamSession $session) use ($availability): void {
             $session->setAttribute('remaining_slots', $availability->remainingSlots($session));
@@ -28,15 +35,17 @@ class SessionController extends Controller
 
         return view('admin.sessions.index', [
             'sessions' => $sessions,
-            'exams' => Exam::where('level', 'school')->latest()->get(),
-            'rooms' => ExamRoom::orderBy('room_name')->get(),
-            'classes' => SchoolClassOptions::names(),
+            'exams'    => Exam::where('level', 'school')->latest()->get(),
+            'rooms'    => ExamRoom::orderBy('room_name')->get(),
+            'classes'  => SchoolClassOptions::names(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        ExamSession::create($this->payload($request));
+        $payload = $this->payload($request);
+        $payload['created_by'] = auth()->id();
+        ExamSession::create($payload);
 
         return back()->with('status', 'Đã tạo ca thi.');
     }

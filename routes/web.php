@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\ScoreController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\StaffAccountController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\StudentImportController;
 use App\Http\Controllers\HomeController;
@@ -24,11 +25,22 @@ use App\Http\Controllers\Proctor\DashboardController as ProctorDashboardControll
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Student\ProfileController as StudentProfileController;
 use App\Http\Controllers\Student\RegistrationController as StudentRegistrationController;
+use App\Http\Controllers\LiveController;
+use App\Http\Controllers\Admin\ExamStudentController;
+use App\Http\Controllers\Admin\ExamCodeController;
+use App\Http\Controllers\Admin\LiveScreenController;
+use App\Http\Controllers\Admin\ScoreEntryController;
+use App\Http\Controllers\Admin\RankingController;
+use App\Http\Controllers\Admin\AwardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
 Route::view('/huong-dan', 'pages.guide')->name('guide');
 Route::view('/lien-he', 'pages.contact')->name('contact');
+
+// ── Live screen – public với token (không auth) ──────────────────────────────
+Route::get('/live/{token}', [LiveController::class, 'show'])->name('live.show');
+Route::get('/live/{token}/state', [LiveController::class, 'state'])->name('live.state');
 
 Route::get('/dashboard', function () {
     $user = auth()->user();
@@ -155,6 +167,60 @@ Route::middleware(['auth', 'role:admin|super_admin|exam_admin|teacher'])->prefix
     Route::post('/password-reset-requests/{passwordResetRequest}/resolve', [PasswordResetRequestController::class, 'resolve'])->middleware('permission:users.manage')->name('password_reset_requests.resolve');
 
     Route::get('/activity', [ActivityLogController::class, 'index'])->middleware('permission:activity.view')->name('activity.index');
+
+    // ── Nhân sự & Tài khoản giáo viên ────────────────────────────────────────
+    Route::prefix('staff')->name('staff.')->middleware('permission:staff.manage')->group(function () {
+        Route::get('/', [StaffAccountController::class, 'index'])->name('index');
+        Route::post('/bulk-accounts', [StaffAccountController::class, 'bulk'])->name('account.bulk');
+        Route::post('/{staff}/account', [StaffAccountController::class, 'store'])->name('account.store');
+        Route::delete('/{staff}/account', [StaffAccountController::class, 'unlink'])->name('account.unlink');
+    });
+
+    // ── Danh sách học sinh nội bộ (v2) ───────────────────────────────────────
+    Route::prefix('exams/{exam}/students')->name('exam-students.')->middleware('permission:exams.manage')->group(function () {
+        Route::get('/', [ExamStudentController::class, 'index'])->name('index');
+        Route::post('/', [ExamStudentController::class, 'store'])->name('store');
+        Route::patch('/{examStudent}', [ExamStudentController::class, 'update'])->name('update');
+        Route::delete('/{examStudent}', [ExamStudentController::class, 'destroy'])->name('destroy');
+        Route::post('/check-eligibility', [ExamStudentController::class, 'checkAll'])->name('check_all');
+        Route::post('/{examStudent}/check', [ExamStudentController::class, 'check'])->name('check');
+        Route::post('/{examStudent}/mark-ioe', [ExamStudentController::class, 'markRegisteredOnIoe'])->name('mark_ioe');
+    });
+
+    // ── Mã ca thi (v2) ───────────────────────────────────────────────────────
+    Route::prefix('exams/{exam}/codes')->name('exam-codes.')->middleware('permission:exams.manage')->group(function () {
+        Route::get('/', [ExamCodeController::class, 'index'])->name('index');
+        Route::post('/', [ExamCodeController::class, 'store'])->name('store');
+        Route::put('/{examCode}', [ExamCodeController::class, 'update'])->name('update');
+        Route::delete('/{examCode}', [ExamCodeController::class, 'destroy'])->name('destroy');
+    });
+
+    // ── Live screen admin (v2) ───────────────────────────────────────────────
+    Route::prefix('exams/{exam}/live')->name('live-screens.')->middleware('permission:exams.manage')->group(function () {
+        Route::get('/', [LiveScreenController::class, 'index'])->name('index');
+        Route::post('/', [LiveScreenController::class, 'store'])->name('store');
+        Route::delete('/{liveScreen}', [LiveScreenController::class, 'destroy'])->name('destroy');
+        Route::patch('/{liveScreen}/toggle', [LiveScreenController::class, 'toggle'])->name('toggle');
+        Route::patch('/{liveScreen}/override', [LiveScreenController::class, 'override'])->name('override');
+    });
+
+    // ── Nhập điểm sau thi (v2) ───────────────────────────────────────────────
+    Route::prefix('exams/{exam}/scores')->name('score-entry.')->middleware('permission:scores.enter')->group(function () {
+        Route::get('/', [ScoreEntryController::class, 'index'])->name('index');
+        Route::post('/', [ScoreEntryController::class, 'store'])->name('store');
+        Route::put('/{studentScore}', [ScoreEntryController::class, 'update'])->name('update');
+        Route::post('/{studentScore}/submit', [ScoreEntryController::class, 'submit'])->name('submit');
+        Route::post('/{studentScore}/lock', [ScoreEntryController::class, 'lock'])->name('lock')->middleware('permission:scores.lock');
+        Route::post('/{studentScore}/unlock', [ScoreEntryController::class, 'unlock'])->name('unlock')->middleware('permission:scores.lock');
+    });
+
+    // ── Xếp hạng & xếp giải (v2) ────────────────────────────────────────────
+    Route::prefix('exams/{exam}')->name('exam.')->middleware('permission:exams.manage')->group(function () {
+        Route::get('/rankings', [RankingController::class, 'index'])->name('rankings.index');
+        Route::post('/rankings/run', [RankingController::class, 'run'])->name('rankings.run');
+        Route::get('/awards', [AwardController::class, 'index'])->name('awards.index');
+        Route::post('/awards/run', [AwardController::class, 'run'])->name('awards.run');
+    });
 });
 
 Route::middleware(['auth', 'role:proctor|admin|teacher'])->prefix('proctor')->name('proctor.')->group(function () {

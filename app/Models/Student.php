@@ -54,6 +54,11 @@ class Student extends Model
         return $this->hasMany(ExamRegistration::class);
     }
 
+    public function academicResults(): HasMany
+    {
+        return $this->hasMany(AcademicResult::class);
+    }
+
     public function importBatch(): BelongsTo
     {
         return $this->belongsTo(ImportBatch::class);

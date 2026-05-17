@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -40,8 +41,16 @@ class AccountController extends Controller
             ]);
         }
 
+        // Xử lý username ưu tiên: user chọn → student_code → hs{id tạm}
+        $chosenUsername = trim((string) $request->input('username'));
+        $fallbackUsername = $student->student_code
+            ? $student->student_code
+            : 'hs'.($student->id ?? time());
+
+        $username = $chosenUsername !== '' ? $chosenUsername : $fallbackUsername;
+
         try {
-            $user = DB::transaction(function () use ($request, $student) {
+            $user = DB::transaction(function () use ($request, $student, $username) {
                 $student = Student::whereKey($student->id)->lockForUpdate()->firstOrFail();
 
                 if ($student->user()->exists()) {
@@ -51,21 +60,40 @@ class AccountController extends Controller
                 }
 
                 $user = User::create([
-                    'name' => $student->full_name,
-                    'email' => $request->input('email') ?: $student->email,
-                    'username' => $student->student_code ?: 'hs'.$student->id,
+                    'name'     => $student->full_name,
+                    'email'    => $request->input('email') ?: $student->email,
+                    'username' => $username,
+                    'phone'    => $request->input('phone') ?: $student->phone,
                     'password' => Hash::make($request->input('password')),
-                    'role' => 'student',
-                    'status' => 'active',
+                    'role'     => 'student',
+                    'status'   => 'active',
                     'student_id' => $student->id,
                 ]);
                 $user->assignRole('student');
+
+                // Xử lý ảnh đại diện
+                if ($request->hasFile('avatar')) {
+                    $path = $request->file('avatar')->store('avatars', 'public');
+                    $user->update(['avatar_path' => $path]);
+                }
+
+                // Đồng bộ phone/email từ user nhập vào student record
+                $updates = [];
+                if ($request->filled('phone') && blank($student->phone)) {
+                    $updates['phone'] = $request->input('phone');
+                }
+                if ($request->filled('email') && blank($student->email)) {
+                    $updates['email'] = $request->input('email');
+                }
+                if ($updates) {
+                    $student->update($updates);
+                }
 
                 return $user;
             });
         } catch (QueryException) {
             throw ValidationException::withMessages([
-                'credential' => 'Học sinh này đã có tài khoản hoặc email đã được sử dụng.',
+                'credential' => 'Học sinh này đã có tài khoản hoặc username/email đã được sử dụng.',
             ]);
         }
 

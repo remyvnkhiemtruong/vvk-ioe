@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'username', 'password', 'role', 'status', 'student_id', 'last_login_at'])]
+#[Fillable(['name', 'email', 'username', 'phone', 'avatar_path', 'password', 'role', 'status', 'student_id', 'last_login_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,9 +26,30 @@ class User extends Authenticatable
         return $this->belongsTo(Student::class);
     }
 
+    public function staffProfile(): HasOne
+    {
+        return $this->hasOne(StaffProfile::class);
+    }
+
     public function proctorAssignments(): HasMany
     {
         return $this->hasMany(ProctorAssignment::class);
+    }
+
+    public function createdSessions(): HasMany
+    {
+        return $this->hasMany(ExamSession::class, 'created_by');
+    }
+
+    public function avatarUrl(): string
+    {
+        if ($this->avatar_path) {
+            return asset('storage/'.$this->avatar_path);
+        }
+
+        $name = urlencode($this->name ?: 'U');
+
+        return "https://ui-avatars.com/api/?name={$name}&background=059669&color=fff&size=128";
     }
 
     public function isAdmin(): bool

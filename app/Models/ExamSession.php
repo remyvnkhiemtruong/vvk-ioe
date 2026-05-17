@@ -31,6 +31,7 @@ class ExamSession extends Model
         'max_candidates',
         'status',
         'note',
+        'created_by',
     ];
 
     protected function casts(): array
@@ -54,6 +55,11 @@ class ExamSession extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(ExamRoom::class, 'exam_room_id');
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function assignments(): HasMany

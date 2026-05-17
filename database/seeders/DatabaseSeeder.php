@@ -62,6 +62,8 @@ class DatabaseSeeder extends Seeder
             'users.manage',
             'activity.view',
             'settings.manage',
+            'staff.manage',
+            'staff.create_account',
         ];
 
         foreach ($permissions as $permission) {

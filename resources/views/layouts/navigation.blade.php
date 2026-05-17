@@ -43,6 +43,9 @@
                         @can('settings.manage')
                             <x-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">Cài đặt</x-nav-link>
                         @endcan
+                        @can('staff.manage')
+                            <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">Nhân sự</x-nav-link>
+                        @endcan
                     @endauth
                 </div>
             </div>
@@ -51,6 +54,8 @@
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition hover:text-gray-700 focus:outline-none">
+                            @php $avaUrl = Auth::user()->avatarUrl(); @endphp
+                            <img src="{{ $avaUrl }}" alt="" class="h-7 w-7 rounded-full object-cover mr-2">
                             <div>{{ Auth::user()->name }}</div>
                             <div class="ms-1">
                                 <svg class="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -92,6 +97,7 @@
             @can('checkins.manage')<x-responsive-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.checkins.index') : route('admin.checkins.index')">Check-in</x-responsive-nav-link>@endcan
             @can('attendance.manage')<x-responsive-nav-link :href="route('admin.monitoring.index')">Giám sát</x-responsive-nav-link>@endcan
             @can('settings.manage')<x-responsive-nav-link :href="route('admin.settings.index')">Cài đặt</x-responsive-nav-link>@endcan
+            @can('staff.manage')<x-responsive-nav-link :href="route('admin.staff.index')">Nhân sự</x-responsive-nav-link>@endcan
         </div>
         <div class="border-t border-gray-200 pb-1 pt-4">
             <div class="px-4">
