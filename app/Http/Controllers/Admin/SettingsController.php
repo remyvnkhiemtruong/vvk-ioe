@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Exam;
 use App\Services\SystemSettingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,9 +34,18 @@ class SettingsController extends Controller
             'site.home_description' => ['nullable', 'string', 'max:1000'],
             'site.guide_content' => ['nullable', 'string'],
             'contact.teacher_name' => ['nullable', 'string', 'max:255'],
-            'contact.phone' => ['nullable', 'string', 'max:30'],
-            'contact.email' => ['nullable', 'email', 'max:255'],
+            'contact.teacher_title' => ['nullable', 'string', 'max:255'],
+            'contact.teacher_phone' => ['nullable', 'string', 'max:30'],
+            'contact.teacher_email' => ['nullable', 'email', 'max:255'],
+            'contact.support_name' => ['nullable', 'string', 'max:255'],
+            'contact.support_title' => ['nullable', 'string', 'max:255'],
+            'contact.support_phone' => ['nullable', 'string', 'max:30'],
+            'contact.support_email' => ['nullable', 'email', 'max:255'],
+            'contact.developer_name' => ['nullable', 'string', 'max:255'],
             'contact.note' => ['nullable', 'string', 'max:1000'],
+            'account.student_registration_enabled' => ['nullable', 'boolean'],
+            'account.student_code_lookup_url' => ['nullable', 'url', 'max:500'],
+            'account.student_code_help' => ['nullable', 'string', 'max:1000'],
             'exam.name' => ['required', 'string', 'max:255'],
             'exam.school_year' => ['required', 'string', 'max:20'],
             'exam.registration_opens_at' => ['nullable', 'date'],
@@ -44,7 +54,7 @@ class SettingsController extends Controller
             'exam.exam_time' => ['nullable', 'date_format:H:i'],
             'exam.countdown_mode' => ['required', 'in:auto,open,close,exam'],
             'exam.registration_mode' => ['nullable', 'in:admin_assign_session,student_select_session'],
-            'exam.status' => ['required', 'in:draft,open,closed,assigning,locked,in_progress,completed'],
+            'exam.status' => ['required', 'in:draft,preparing,student_list_ready,live_ready,open,closed,assigning,locked,running,in_progress,score_entering,ranked,finished,completed,archived'],
             'exam.description' => ['nullable', 'string', 'max:1000'],
             'mail.host' => ['nullable', 'string', 'max:255'],
             'mail.port' => ['nullable', 'integer', 'min:1'],
@@ -60,6 +70,11 @@ class SettingsController extends Controller
         $settings->set('school.info', $data['school']);
         $settings->set('site.info', $data['site']);
         $settings->set('site.contact', $data['contact'] ?? []);
+        $settings->set('account.options', [
+            'student_registration_enabled' => $request->boolean('account.student_registration_enabled'),
+            'student_code_lookup_url' => $request->input('account.student_code_lookup_url'),
+            'student_code_help' => $request->input('account.student_code_help'),
+        ]);
         $settings->set('security.options', $data['security'] ?? []);
         $settings->saveMailSettings($data['mail'] ?? []);
 
@@ -67,8 +82,7 @@ class SettingsController extends Controller
             $settings->storeLogo($request->file('logo'));
         }
 
-        $exam = $settings->currentSchoolExam();
-        $exam->update([
+        $examPayload = [
             ...$data['exam'],
             'level' => 'school',
             'template_type' => 'truong',
@@ -85,7 +99,12 @@ class SettingsController extends Controller
             'require_approval' => $request->boolean('options.require_approval'),
             'publish_scores' => $request->boolean('score.publish_scores'),
             'show_countdown' => $request->boolean('options.show_countdown'),
-        ]);
+        ];
+
+        $exam = $settings->currentSchoolExam();
+        $exam->exists
+            ? $exam->update($examPayload)
+            : Exam::create($examPayload);
 
         $settings->set('score.options', [
             'publish_scores' => $request->boolean('score.publish_scores'),

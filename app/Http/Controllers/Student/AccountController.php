@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreStudentAccountRequest;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\SystemSettingService;
 use App\Support\SchoolClassOptions;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -18,15 +19,25 @@ use Illuminate\View\View;
 
 class AccountController extends Controller
 {
-    public function create(): View
+    public function create(SystemSettingService $settings): View
     {
         return view('student.account.create', [
             'classes' => SchoolClassOptions::names(),
+            'settings' => $settings,
+            'account' => $settings->accountOptions(),
+            'contact' => $settings->contact(),
+            'registrationEnabled' => $settings->studentAccountRegistrationEnabled(),
         ]);
     }
 
-    public function store(StoreStudentAccountRequest $request): RedirectResponse
+    public function store(StoreStudentAccountRequest $request, SystemSettingService $settings): RedirectResponse
     {
+        if (! $settings->studentAccountRegistrationEnabled()) {
+            throw ValidationException::withMessages([
+                'credential' => 'Nhà trường đang tạm khóa chức năng tạo tài khoản học sinh. Vui lòng xem hướng dẫn liên hệ trên trang này.',
+            ]);
+        }
+
         $student = Student::query()
             ->where('class_name', $request->string('class_name'))
             ->where(function ($query) use ($request) {

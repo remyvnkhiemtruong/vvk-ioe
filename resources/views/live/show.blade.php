@@ -236,6 +236,8 @@ function renderState(state) {
         renderCodeVisible(root, state);
     } else if (state.status === 'waiting_next_slot') {
         renderWaiting(root, state);
+    } else if (state.status === 'exam_running_code_hidden') {
+        renderRunningHidden(root, state);
     } else if (state.status === 'all_finished' || state.status === 'force_ended') {
         renderFinished(root, state);
     } else if (state.status === 'no_slots' || state.status === 'disabled') {
@@ -251,6 +253,26 @@ function renderState(state) {
         countdownTarget = new Date(state.countdown_target);
         startCountdown();
     }
+}
+
+function renderRunningHidden(root, state) {
+    const slot = state.current_slot ?? {};
+    root.innerHTML = `
+        <div class="live-header">
+            ${state.exam ? `<div class="live-exam-name">${escHtml(state.exam.name ?? '')}</div>` : ''}
+            ${state.exam?.level ? `<span class="live-exam-level">${escHtml(state.exam.level)}</span>` : ''}
+        </div>
+        <div class="status-badge waiting">⏱ Ca thi đang diễn ra</div>
+        ${slot.grade_label ? `<div class="slot-info">
+            <div class="slot-title">${escHtml(slot.grade_label)}</div>
+            <div class="slot-meta">Mã ca thi đã ẩn · ${slot.student_count ? slot.student_count + ' học sinh' : ''}</div>
+        </div>` : ''}
+        <div class="countdown-block">
+            <div class="countdown-label">Thời gian còn lại của ca thi</div>
+            <div class="countdown-digits" id="cd-main">--:--:--</div>
+        </div>
+        <div class="live-message">${escHtml(state.message ?? '')}</div>`;
+    countdownEl = document.getElementById('cd-main');
 }
 
 function renderCodeVisible(root, state) {

@@ -18,6 +18,7 @@ use App\Models\Ranking;
 use App\Models\SelfTrainingProgress;
 use App\Models\Student;
 use App\Models\StudentScore;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AcademicYearRolloverService;
 use App\Services\AwardService;
@@ -157,8 +158,12 @@ class IoeInternalV2Test extends TestCase
         $this->assertSame('IOE-123', $afterStart['code']);
 
         $afterHide = $service->getCurrentLiveState($screen, Carbon::parse('2026-05-20 10:05:00', 'Asia/Ho_Chi_Minh'));
-        $this->assertSame('all_finished', $afterHide['status']);
+        $this->assertSame('exam_running_code_hidden', $afterHide['status']);
+        $this->assertSame($slot->ends_at->toIso8601String(), $afterHide['countdown_target']);
         $this->assertArrayNotHasKey('code', $afterHide);
+
+        $afterEnd = $service->getCurrentLiveState($screen, Carbon::parse('2026-05-20 10:31:00', 'Asia/Ho_Chi_Minh'));
+        $this->assertSame('all_finished', $afterEnd['status']);
 
         $this->getJson(route('live.state', $screen->token))
             ->assertOk()
@@ -197,7 +202,7 @@ class IoeInternalV2Test extends TestCase
             'student_count' => 3,
             'status' => 'ready',
         ]);
-        $state = $service->getCurrentLiveState($screen, Carbon::parse('2026-05-20 10:20:00', 'Asia/Ho_Chi_Minh'));
+        $state = $service->getCurrentLiveState($screen, Carbon::parse('2026-05-20 10:31:00', 'Asia/Ho_Chi_Minh'));
         $this->assertSame('waiting_next_slot', $state['status']);
         $this->assertSame($nextSlot->id, $state['next_slot']['id']);
     }
@@ -322,6 +327,43 @@ class IoeInternalV2Test extends TestCase
 
         $this->assertDatabaseHas('award_rules', ['id' => $schoolRule->id]);
         $this->assertDatabaseHas('award_rules', ['id' => $nationalRule->id]);
+    }
+
+    public function test_award_rule_awards_top_half_of_students_above_50_percent(): void
+    {
+        $exam = $this->exam('school');
+        for ($i = 0; $i < 20; $i++) {
+            $this->score($exam, 950 - $i * 10, 100 + $i, 'locked', 1000);
+        }
+
+        app(RankingService::class)->run($exam, 'school');
+
+        $rule = AwardRule::create([
+            'exam_id' => $exam->id,
+            'name' => 'Top 50 đạt chuẩn',
+            'scope' => 'school',
+            'min_score_percent' => 50,
+            'top_percent' => 50,
+            'priority_order' => 4,
+            'is_active' => true,
+        ]);
+        foreach ([['Nhất', 'first', 10, 1], ['Nhì', 'second', 20, 2], ['Ba', 'third', 30, 3], ['Khuyến khích', 'encouragement', 40, 4]] as [$name, $code, $ratio, $sort]) {
+            AwardRuleItem::create([
+                'award_rule_id' => $rule->id,
+                'award_name' => $name,
+                'award_code' => $code,
+                'ratio_percent' => $ratio,
+                'sort_order' => $sort,
+            ]);
+        }
+
+        $this->assertSame(10, app(AwardService::class)->run($exam));
+        $this->assertSame([
+            'encouragement' => 4,
+            'first' => 1,
+            'second' => 2,
+            'third' => 3,
+        ], Ranking::whereNotNull('award_code')->selectRaw('award_code, count(*) as total')->groupBy('award_code')->orderBy('award_code')->pluck('total', 'award_code')->all());
     }
 
     public function test_historical_seed_imports_expected_counts_mappings_and_is_idempotent(): void
@@ -475,6 +517,134 @@ class IoeInternalV2Test extends TestCase
             '--all-students' => true,
             '--dry-run' => true,
         ])->assertExitCode(0);
+    }
+
+    public function test_prepare_year_archives_old_workflow_and_keeps_new_year_clean(): void
+    {
+        $this->artisan('ioe:seed-2025-2026')->assertExitCode(0);
+
+        $this->artisan('ioe:prepare-year', [
+            'year' => '2026-2027',
+            '--dry-run' => true,
+        ])->assertExitCode(0);
+        $this->assertDatabaseHas('academic_years', ['code' => '2025-2026', 'is_active' => false]);
+
+        $this->artisan('ioe:prepare-year', ['year' => '2026-2027'])->assertExitCode(0);
+
+        $this->assertDatabaseHas('academic_years', [
+            'code' => '2026-2027',
+            'status' => 'current',
+            'is_active' => true,
+        ]);
+        $this->assertSame(37, AcademicYearStudent::whereHas('academicYear', fn ($q) => $q->where('code', '2026-2027'))->count());
+        $this->assertSame(0, Exam::where('school_year', '2026-2027')->count());
+        $this->assertSame(0, StudentScore::whereHas('exam', fn ($q) => $q->where('school_year', '2026-2027'))->count());
+        $this->assertSame(0, Exam::where('school_year', '2025-2026')->where('status', '!=', 'archived')->count());
+        $this->assertSame('2026-2027', SystemSetting::where('key', 'site.info')->first()->value['school_year']);
+        $this->assertTrue(SystemSetting::where('key', 'account.options')->first()->value['student_registration_enabled']);
+    }
+
+    public function test_landing_shows_only_active_2026_2027_exams(): void
+    {
+        $year = AcademicYear::firstOrCreate(['code' => '2026-2027'], [
+            'name' => 'Năm học 2026 - 2027',
+            'start_date' => '2026-09-01',
+            'end_date' => '2027-05-31',
+            'status' => 'current',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+        SystemSetting::updateOrCreate(['key' => 'site.info'], [
+            'value' => ['school_year' => '2026-2027', 'site_name' => 'IOE nội bộ', 'contest_name' => 'IOE nội bộ VVK'],
+        ]);
+
+        Exam::create([
+            'name' => 'Kỳ thi đã hoàn thành',
+            'school_year' => '2026-2027',
+            'academic_year_id' => $year->id,
+            'level' => 'school',
+            'registration_mode' => 'admin_assign_session',
+            'target_grades' => [10],
+            'status' => 'completed',
+        ]);
+        Exam::create([
+            'name' => 'Kỳ thi đang chuẩn bị',
+            'school_year' => '2026-2027',
+            'academic_year_id' => $year->id,
+            'level' => 'school',
+            'registration_mode' => 'admin_assign_session',
+            'target_grades' => [10],
+            'status' => 'preparing',
+        ]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee('Kỳ thi đang chuẩn bị')
+            ->assertDontSee('Kỳ thi đã hoàn thành');
+    }
+
+    public function test_student_account_registration_can_be_disabled_from_settings(): void
+    {
+        SystemSetting::updateOrCreate(['key' => 'account.options'], [
+            'value' => [
+                'student_registration_enabled' => false,
+                'student_code_help' => 'Liên hệ Trương Minh Khiêm để được cấp mã học sinh.',
+                'student_code_lookup_url' => '',
+            ],
+        ]);
+
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSee('Nhà trường đang tạm khóa chức năng tạo tài khoản học sinh');
+
+        $this->post(route('register'), [
+            'class_name' => '10A1',
+            'credential' => 'HS001',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+        ])->assertSessionHasErrors('credential');
+    }
+
+    public function test_exam_creation_creates_default_top_50_award_rule(): void
+    {
+        $admin = $this->adminUser();
+        $year = AcademicYear::firstOrCreate(['code' => '2026-2027'], [
+            'name' => 'Năm học 2026 - 2027',
+            'start_date' => '2026-09-01',
+            'end_date' => '2027-05-31',
+            'status' => 'current',
+            'is_current' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.exams.store'), [
+                'name' => 'IOE test 2026',
+                'school_year' => '2026-2027',
+                'academic_year_id' => $year->id,
+                'level' => 'school',
+                'registration_mode' => 'admin_assign_session',
+                'target_grades' => [10, 11, 12],
+                'status' => 'preparing',
+                'timezone' => 'Asia/Ho_Chi_Minh',
+                'max_score' => 1000,
+                'award_min_score_percent' => 50,
+                'award_top_percent' => 50,
+                'show_countdown' => 1,
+            ])
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $exam = Exam::where('name', 'IOE test 2026')->firstOrFail();
+        $rule = AwardRule::where('exam_id', $exam->id)->where('scope', 'school')->firstOrFail();
+        $this->assertSame(50, $rule->min_score_percent);
+        $this->assertSame(50, $rule->top_percent);
+        $this->assertSame([
+            'encouragement' => 40,
+            'first' => 10,
+            'second' => 20,
+            'third' => 30,
+        ], AwardRuleItem::where('award_rule_id', $rule->id)->orderBy('award_code')->pluck('ratio_percent', 'award_code')->all());
     }
 
     public function test_main_navigation_does_not_require_minutes_video_or_incident_workflow(): void

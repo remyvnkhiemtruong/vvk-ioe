@@ -1,8 +1,12 @@
 <nav x-data="{ open: false }" class="border-b border-slate-200 bg-white">
     @auth
         @php
-            $navExam = \App\Models\Exam::query()->whereNotNull('code')->latest('id')->first()
-                ?? \App\Models\Exam::query()->latest('id')->first();
+            $settings = app(\App\Services\SystemSettingService::class);
+            $navExam = \App\Models\Exam::query()
+                ->where('school_year', $settings->schoolYear())
+                ->whereIn('status', \App\Services\SystemSettingService::ACTIVE_LANDING_STATUSES)
+                ->latest('id')
+                ->first();
         @endphp
     @endauth
 

@@ -8,6 +8,7 @@ use App\Models\Exam;
 use App\Models\ExamRegistration;
 use App\Services\ExamRegistrationService;
 use App\Services\ExamSessionAvailabilityService;
+use App\Services\SystemSettingService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -18,7 +19,11 @@ class RegistrationController extends Controller
     public function dashboard(ExamSessionAvailabilityService $availability): View
     {
         $student = auth()->user()->student;
-        $exam = Exam::where('level', 'school')->latest()->first();
+        $settings = app(SystemSettingService::class);
+        $exam = Exam::where('school_year', $settings->schoolYear())
+            ->whereIn('status', SystemSettingService::ACTIVE_LANDING_STATUSES)
+            ->latest('id')
+            ->first();
         $registration = $student && $exam
             ? $student->registrations()
                 ->where('exam_id', $exam->id)

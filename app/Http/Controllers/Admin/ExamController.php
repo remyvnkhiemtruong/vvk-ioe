@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
+use App\Models\AwardRule;
+use App\Models\AwardRuleItem;
 use App\Models\Exam;
 use App\Models\ExamLevel;
 use Illuminate\Http\RedirectResponse;
@@ -27,7 +29,8 @@ class ExamController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        Exam::create($this->payload($request));
+        $exam = Exam::create($this->payload($request));
+        $this->ensureDefaultAwardRule($exam);
 
         return back()->with('status', 'Đã tạo kỳ thi nội bộ.');
     }
@@ -35,6 +38,7 @@ class ExamController extends Controller
     public function update(Request $request, Exam $exam): RedirectResponse
     {
         $exam->update($this->payload($request, $exam));
+        $this->ensureDefaultAwardRule($exam->refresh());
 
         return back()->with('status', 'Đã cập nhật kỳ thi nội bộ.');
     }
@@ -90,11 +94,20 @@ class ExamController extends Controller
             'status' => ['required', 'in:draft,preparing,student_list_ready,live_ready,running,finished,score_entering,ranked,archived,open,closed,assigning,locked,in_progress,completed'],
             'timezone' => ['nullable', 'string', 'max:60'],
             'source' => ['nullable', 'string', 'max:100'],
+            'max_score' => ['nullable', 'integer', 'min:1', 'max:5000'],
+            'award_min_score_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'award_top_percent' => ['nullable', 'integer', 'min:1', 'max:100'],
             'description' => ['nullable', 'string'],
         ]);
 
         $examLevel = isset($data['exam_level_id']) ? ExamLevel::find($data['exam_level_id']) : null;
         $levelCode = $examLevel?->code ?? ($data['level'] ?? 'school');
+        $maxScoreRule = [
+            'default_max_score' => (int) ($data['max_score'] ?? data_get($exam?->max_score_rule, 'default_max_score', 1000)),
+            'award_min_score_percent' => (int) ($data['award_min_score_percent'] ?? data_get($exam?->max_score_rule, 'award_min_score_percent', 50)),
+            'award_top_percent' => (int) ($data['award_top_percent'] ?? data_get($exam?->max_score_rule, 'award_top_percent', 50)),
+        ];
+        unset($data['max_score'], $data['award_min_score_percent'], $data['award_top_percent']);
 
         return [
             ...$data,
@@ -112,6 +125,7 @@ class ExamController extends Controller
                 ->map(fn ($grade) => (int) $grade)
                 ->values()
                 ->all(),
+            'max_score_rule' => $maxScoreRule,
             'timezone' => $data['timezone'] ?? 'Asia/Ho_Chi_Minh',
             'source' => $data['source'] ?? 'admin_configured',
             'allow_student_edit' => $request->boolean('allow_student_edit'),
@@ -125,5 +139,46 @@ class ExamController extends Controller
             'show_countdown' => $request->boolean('show_countdown'),
             'countdown_mode' => $data['countdown_mode'] ?? 'auto',
         ];
+    }
+
+    private function ensureDefaultAwardRule(Exam $exam): void
+    {
+        $rule = AwardRule::firstOrCreate(
+            [
+                'exam_id' => $exam->id,
+                'scope' => 'school',
+                'name' => 'Mặc định: top 50% học sinh đạt từ 50% điểm',
+            ],
+            [
+                'min_score_percent' => (int) data_get($exam->max_score_rule, 'award_min_score_percent', 50),
+                'top_percent' => (int) data_get($exam->max_score_rule, 'award_top_percent', 50),
+                'priority_order' => 4,
+                'is_active' => true,
+            ]
+        );
+
+        $rule->fill([
+            'min_score_percent' => (int) data_get($exam->max_score_rule, 'award_min_score_percent', 50),
+            'top_percent' => (int) data_get($exam->max_score_rule, 'award_top_percent', 50),
+            'priority_order' => 4,
+            'is_active' => true,
+        ])->save();
+
+        foreach ([
+            ['Nhất', 'first', 10, 1],
+            ['Nhì', 'second', 20, 2],
+            ['Ba', 'third', 30, 3],
+            ['Khuyến khích', 'encouragement', 40, 4],
+        ] as [$name, $code, $ratio, $sort]) {
+            AwardRuleItem::updateOrCreate(
+                ['award_rule_id' => $rule->id, 'award_code' => $code],
+                [
+                    'award_name' => $name,
+                    'ratio_percent' => $ratio,
+                    'max_quantity' => null,
+                    'sort_order' => $sort,
+                ]
+            );
+        }
     }
 }

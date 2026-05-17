@@ -11,6 +11,16 @@ use Illuminate\Support\Facades\Storage;
 
 class SystemSettingService
 {
+    public const ACTIVE_LANDING_STATUSES = [
+        'preparing',
+        'student_list_ready',
+        'live_ready',
+        'open',
+        'running',
+        'in_progress',
+        'score_entering',
+    ];
+
     public function all(): array
     {
         return SystemSetting::query()
@@ -41,27 +51,47 @@ class SystemSettingService
 
     public function siteName(): string
     {
-        return $this->text('site.info', 'site_name', 'IOE cấp trường');
+        return $this->text('site.info', 'site_name', 'IOE nội bộ');
     }
 
     public function contestName(): string
     {
-        return $this->text('site.info', 'contest_name', 'Đăng ký dự thi Olympic Tiếng Anh trên Internet cấp trường');
+        return $this->text('site.info', 'contest_name', 'IOE nội bộ Trường THPT Võ Văn Kiệt');
     }
 
     public function schoolYear(): string
     {
-        return $this->text('site.info', 'school_year', '2025-2026');
+        return $this->text('site.info', 'school_year', '2026-2027');
     }
 
     public function contact(): array
     {
         return $this->get('site.contact', [
-            'teacher_name' => 'Giáo viên phụ trách IOE',
-            'phone' => '',
-            'email' => '',
-            'note' => 'Học sinh liên hệ giáo viên phụ trách khi cần hỗ trợ tài khoản, thông tin cá nhân hoặc ca thi.',
+            'teacher_name' => 'Thầy Huỳnh Thanh Hào',
+            'teacher_title' => 'Giáo viên tiếng Anh, phụ trách tổ chức thi IOE',
+            'teacher_phone' => '',
+            'teacher_email' => 'huynhthanhhaota@gmail.com',
+            'support_name' => 'Trương Minh Khiêm',
+            'support_title' => 'Cựu học sinh, học viên Trường Sĩ quan Thông tin',
+            'support_phone' => '0385844458',
+            'support_email' => 'truongminhkhiemvta@gmail.com',
+            'developer_name' => 'Trương Minh Khiêm',
+            'note' => 'Học sinh liên hệ giáo viên phụ trách hoặc bộ phận hỗ trợ khi cần mã học sinh, tài khoản hoặc thông tin ca thi.',
         ]);
+    }
+
+    public function accountOptions(): array
+    {
+        return $this->get('account.options', [
+            'student_registration_enabled' => true,
+            'student_code_lookup_url' => '',
+            'student_code_help' => 'Nếu chưa biết mã học sinh, học sinh có thể liên hệ Trương Minh Khiêm để được hỗ trợ hoặc dùng link tra cứu khi nhà trường công bố.',
+        ]);
+    }
+
+    public function studentAccountRegistrationEnabled(): bool
+    {
+        return (bool) ($this->accountOptions()['student_registration_enabled'] ?? true);
     }
 
     public function logoUrl(): ?string
@@ -107,9 +137,16 @@ class SystemSettingService
 
     public function currentSchoolExam(): Exam
     {
-        return Exam::where('level', 'school')->latest()->first()
-            ?: Exam::create([
-                'name' => 'IOE cấp trường năm học 2025-2026',
+        return Exam::where('level', 'school')
+            ->where('school_year', $this->schoolYear())
+            ->latest()
+            ->first()
+            ?: Exam::where('level', 'school')
+                ->whereIn('status', self::ACTIVE_LANDING_STATUSES)
+                ->latest()
+                ->first()
+            ?: new Exam([
+                'name' => 'IOE nội bộ năm học '.$this->schoolYear(),
                 'school_year' => $this->schoolYear(),
                 'level' => 'school',
                 'template_type' => 'truong',
@@ -117,6 +154,11 @@ class SystemSettingService
                 'registration_mode' => 'admin_assign_session',
                 'organizer_scope' => 'school',
                 'target_grades' => [10, 11, 12],
+                'max_score_rule' => [
+                    'default_max_score' => 1000,
+                    'award_min_score_percent' => 50,
+                    'award_top_percent' => 50,
+                ],
                 'allow_student_edit' => true,
                 'allow_student_session_change' => true,
                 'require_session_choice' => false,
@@ -128,7 +170,9 @@ class SystemSettingService
                 'show_countdown' => true,
                 'countdown_mode' => 'auto',
                 'status' => 'draft',
-                'description' => 'Đăng ký dự thi Olympic Tiếng Anh trên Internet cấp trường.',
+                'timezone' => 'Asia/Ho_Chi_Minh',
+                'source' => 'admin_configured',
+                'description' => 'Kỳ thi IOE nội bộ do nhà trường cấu hình cho năm học '.$this->schoolYear().'.',
             ]);
     }
 }

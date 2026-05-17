@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Support\SchoolClassOptions;
+use App\Services\SystemSettingService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreStudentAccountRequest extends FormRequest
 {
@@ -27,6 +29,15 @@ class StoreStudentAccountRequest extends FormRequest
             'avatar'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'password'   => ['required', 'confirmed', 'min:8', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! app(SystemSettingService::class)->studentAccountRegistrationEnabled()) {
+                $validator->errors()->add('credential', 'Nhà trường đang tạm khóa chức năng tạo tài khoản học sinh. Vui lòng xem hướng dẫn liên hệ.');
+            }
+        });
     }
 
     public function messages(): array

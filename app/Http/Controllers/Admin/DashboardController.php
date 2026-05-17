@@ -24,6 +24,7 @@ use App\Models\Student;
 use App\Models\StudentScore;
 use App\Models\VideoEvidence;
 use App\Services\ExamSessionAvailabilityService;
+use App\Services\SystemSettingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -31,17 +32,19 @@ class DashboardController extends Controller
 {
     public function __invoke(ExamSessionAvailabilityService $availability): View
     {
-        $exam = Exam::whereNotNull('code')->latest('id')->first()
-            ?? Exam::where('level', 'school')->latest('id')->first();
+        $exam = Exam::where('school_year', app(SystemSettingService::class)->schoolYear())
+            ->whereIn('status', SystemSettingService::ACTIVE_LANDING_STATUSES)
+            ->latest('id')
+            ->first();
         $examId = $exam?->id;
-        $registrations = ExamRegistration::when($examId, fn ($q) => $q->where('exam_id', $examId));
-        $sessions = ExamSession::when($examId, fn ($q) => $q->where('exam_id', $examId))->get();
-        $internalStudents = ExamStudent::when($examId, fn ($q) => $q->where('exam_id', $examId));
-        $studentScores = StudentScore::when($examId, fn ($q) => $q->where('exam_id', $examId));
+        $registrations = ExamRegistration::query()->when($examId, fn ($q) => $q->where('exam_id', $examId), fn ($q) => $q->whereRaw('1 = 0'));
+        $sessions = $examId ? ExamSession::where('exam_id', $examId)->get() : collect();
+        $internalStudents = ExamStudent::query()->when($examId, fn ($q) => $q->where('exam_id', $examId), fn ($q) => $q->whereRaw('1 = 0'));
+        $studentScores = StudentScore::query()->when($examId, fn ($q) => $q->where('exam_id', $examId), fn ($q) => $q->whereRaw('1 = 0'));
         $sessionIds = $examId ? ExamSession::where('exam_id', $examId)->pluck('id') : collect();
 
         $wrongSessions = ExamRegistration::with(['exam', 'student', 'chosenSession'])
-            ->when($examId, fn ($q) => $q->where('exam_id', $examId))
+            ->when($examId, fn ($q) => $q->where('exam_id', $examId), fn ($q) => $q->whereRaw('1 = 0'))
             ->whereNotNull('exam_session_id')
             ->get()
             ->filter(fn (ExamRegistration $registration) => $registration->chosenSession && (
@@ -94,7 +97,7 @@ class DashboardController extends Controller
                 'rollover_2026_2027' => AcademicYearStudent::whereHas('academicYear', fn ($q) => $q->where('code', '2026-2027'))->count(),
             ],
             'gradeCounts' => ExamRegistration::selectRaw('class_name, count(*) as total')
-                ->when($examId, fn ($q) => $q->where('exam_id', $examId))
+                ->when($examId, fn ($q) => $q->where('exam_id', $examId), fn ($q) => $q->whereRaw('1 = 0'))
                 ->groupBy('class_name')
                 ->orderBy('class_name')
                 ->get(),

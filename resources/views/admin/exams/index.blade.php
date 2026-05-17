@@ -49,6 +49,9 @@
 
             <input name="timezone" value="Asia/Ho_Chi_Minh" class="rounded-md border-slate-300">
             <input name="source" value="admin_configured" class="rounded-md border-slate-300">
+            <input name="max_score" type="number" min="1" value="1000" placeholder="Thang điểm" class="rounded-md border-slate-300">
+            <input name="award_min_score_percent" type="number" min="0" max="100" value="50" placeholder="Ngưỡng điểm giải (%)" class="rounded-md border-slate-300">
+            <input name="award_top_percent" type="number" min="1" max="100" value="50" placeholder="Top đạt giải (%)" class="rounded-md border-slate-300">
             <select name="registration_mode" class="rounded-md border-slate-300">
                 <option value="admin_assign_session">Admin gán ca/khung giờ</option>
                 <option value="student_select_session">Học sinh chọn ca legacy</option>

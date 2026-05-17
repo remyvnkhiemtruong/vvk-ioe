@@ -15,14 +15,14 @@ class LandingStateService
     {
         if (! $exam) {
             return [
-                'phase' => 'not_configured',
-                'headline' => 'Nhà trường chưa mở đăng ký.',
-                'countdown_label' => 'Chưa cấu hình',
+                'phase' => 'awaiting_new_year',
+                'headline' => 'Đang chờ kế hoạch IOE năm học mới.',
+                'countdown_label' => 'Chưa mở kỳ thi',
                 'target_at' => null,
                 'button_active' => false,
                 'button_label' => 'Chưa mở đăng ký',
-                'button_reason' => 'Chưa có kỳ đăng ký IOE cấp trường.',
-                'status_label' => 'Chưa cấu hình',
+                'button_reason' => 'Các kỳ thi 2025-2026 đã lưu lịch sử; nhà trường chưa mở kỳ thi IOE 2026-2027 trên landing page.',
+                'status_label' => 'Chờ thông báo',
             ];
         }
 
@@ -38,34 +38,36 @@ class LandingStateService
             'phase' => $phase,
             'headline' => match ($phase) {
                 'before_open' => 'Đăng ký sẽ mở sau',
-                'open' => 'Thời gian đăng ký còn lại',
-                'closed_before_exam' => 'Kỳ thi sẽ diễn ra sau',
-                'after_exam' => 'Kỳ thi đã diễn ra',
-                default => 'Nhà trường chưa mở đăng ký',
+                'open' => 'Đang mở đăng ký',
+                'closed_before_exam' => 'Đã đóng đăng ký, chờ ngày thi',
+                'running' => 'Kỳ thi đang diễn ra',
+                'score_entering' => 'Đang nhập điểm sau thi',
+                default => 'Đang chuẩn bị kỳ thi',
             },
             'countdown_label' => match ($phase) {
                 'before_open' => 'Đăng ký sẽ mở sau',
                 'open' => 'Thời gian đăng ký còn lại',
                 'closed_before_exam' => 'Kỳ thi sẽ diễn ra sau',
-                'after_exam' => 'Kỳ thi đã diễn ra',
+                'running' => 'Kỳ thi đang diễn ra',
                 default => 'Chưa cấu hình',
             },
             'target_at' => $target,
-            'button_active' => $phase === 'open' && $hasCapacity,
+            'button_active' => $phase === 'open' && (! $exam->requiresSessionChoice() || $hasCapacity),
             'button_label' => match (true) {
                 $phase === 'before_open' => 'Đăng ký chưa mở',
-                $phase === 'open' && ! $hasCapacity => 'Chưa có ca còn chỗ',
+                $phase === 'open' && $exam->requiresSessionChoice() && ! $hasCapacity => 'Chưa có ca còn chỗ',
                 $phase === 'open' => 'Đăng ký dự thi',
                 $phase === 'closed_before_exam' => 'Đăng ký đã đóng',
-                $phase === 'after_exam' && $exam->publish_scores => 'Xem kết quả sau đăng nhập',
-                default => 'Đăng ký chưa mở',
+                $phase === 'running' => 'Kỳ thi đang diễn ra',
+                default => 'Đang chuẩn bị',
             },
             'button_reason' => match (true) {
-                $phase === 'before_open' => 'Kỳ đăng ký sẽ mở từ '.($exam->registration_opens_at?->format('d/m/Y H:i') ?? 'Chưa cấu hình').'.',
-                $phase === 'open' && ! $hasCapacity => 'Hiện chưa có ca thi đang mở và còn chỗ.',
-                $phase === 'closed_before_exam' => 'Kỳ đăng ký đã kết thúc vào '.($exam->registration_closes_at?->format('d/m/Y H:i') ?? 'Chưa cấu hình').'.',
-                $phase === 'after_exam' => 'Kỳ thi đã qua ngày dự kiến.',
-                default => 'Nhà trường chưa mở đăng ký.',
+                $phase === 'before_open' => 'Kỳ đăng ký sẽ mở từ '.($exam->registration_opens_at?->format('d/m/Y H:i') ?? 'thời điểm nhà trường công bố').'.',
+                $phase === 'open' && $exam->requiresSessionChoice() && ! $hasCapacity => 'Hiện chưa có ca thi phù hợp còn chỗ.',
+                $phase === 'closed_before_exam' => 'Kỳ đăng ký đã kết thúc vào '.($exam->registration_closes_at?->format('d/m/Y H:i') ?? 'thời điểm đã cấu hình').'.',
+                $phase === 'running' => 'Kỳ thi đang diễn ra; học sinh theo hướng dẫn của giám thị.',
+                $phase === 'score_entering' => 'Nhà trường đang nhập điểm và xếp giải sau thi.',
+                default => 'Nhà trường đang chuẩn bị kỳ thi IOE năm học mới.',
             },
             'status_label' => $this->examStatusLabel($exam),
         ];
@@ -127,6 +129,14 @@ class LandingStateService
 
     private function phase(Exam $exam, Carbon $now, ?Carbon $examDateTime): string
     {
+        if (in_array($exam->status, ['running', 'in_progress'], true)) {
+            return 'running';
+        }
+
+        if ($exam->status === 'score_entering') {
+            return 'score_entering';
+        }
+
         if ($exam->registration_opens_at && $now->lt($exam->registration_opens_at)) {
             return 'before_open';
         }
@@ -139,11 +149,7 @@ class LandingStateService
             return 'closed_before_exam';
         }
 
-        if ($examDateTime && $now->gte($examDateTime)) {
-            return 'after_exam';
-        }
-
-        return $exam->status === 'open' ? 'open' : 'not_configured';
+        return 'preparing';
     }
 
     private function target(Exam $exam, string $phase, ?Carbon $examDateTime): ?Carbon
@@ -169,12 +175,20 @@ class LandingStateService
     {
         return [
             'draft' => 'Nháp',
+            'preparing' => 'Đang chuẩn bị',
+            'student_list_ready' => 'Sẵn sàng danh sách',
+            'live_ready' => 'Sẵn sàng live',
             'open' => 'Đang mở đăng ký',
             'closed' => 'Đã đóng đăng ký',
-            'assigning' => 'Đang phân phòng',
+            'assigning' => 'Đang phân ca',
             'locked' => 'Đã khóa danh sách',
+            'running' => 'Đang thi',
             'in_progress' => 'Đang thi',
-            'completed' => 'Đã hoàn thành',
+            'score_entering' => 'Đang nhập điểm',
+            'ranked' => 'Đã xếp giải',
+            'finished' => 'Đã kết thúc',
+            'completed' => 'Hoàn thành',
+            'archived' => 'Lưu trữ',
         ][$exam->status] ?? 'Chưa cấu hình';
     }
 }
