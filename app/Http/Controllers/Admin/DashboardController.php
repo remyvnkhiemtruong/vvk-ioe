@@ -1,0 +1,69 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Exam;
+use App\Models\ExamRegistration;
+use App\Models\ExamScore;
+use App\Models\ExamSession;
+use App\Models\Incident;
+use App\Models\RoomComputer;
+use App\Models\SeatAssignment;
+use App\Models\Student;
+use App\Services\ExamSessionAvailabilityService;
+use Illuminate\View\View;
+
+class DashboardController extends Controller
+{
+    public function __invoke(ExamSessionAvailabilityService $availability): View
+    {
+        $exam = Exam::where('level', 'school')->latest()->first();
+        $examId = $exam?->id;
+        $registrations = ExamRegistration::when($examId, fn ($q) => $q->where('exam_id', $examId));
+        $sessions = ExamSession::when($examId, fn ($q) => $q->where('exam_id', $examId))->get();
+
+        $wrongSessions = ExamRegistration::with(['exam', 'student', 'chosenSession'])
+            ->when($examId, fn ($q) => $q->where('exam_id', $examId))
+            ->whereNotNull('exam_session_id')
+            ->get()
+            ->filter(fn (ExamRegistration $registration) => $registration->chosenSession && (
+                ! $availability->isExamTargetForStudent($registration->exam, $registration)
+                || ! $availability->isTargetForStudent($registration->chosenSession, $registration)
+            ))
+            ->count();
+
+        return view('admin.dashboard', [
+            'exam' => $exam,
+            'stats' => [
+                'students' => Student::count(),
+                'registrations' => (clone $registrations)->count(),
+                'approved' => (clone $registrations)->where('status', 'approved')->count(),
+                'pending' => (clone $registrations)->whereIn('status', ['submitted', 'pending'])->count(),
+                'rejected' => (clone $registrations)->where('status', 'rejected')->count(),
+                'byod_pending' => (clone $registrations)->where('uses_personal_computer', true)->where('personal_computer_status', 'pending')->count(),
+                'byod_approved' => (clone $registrations)->where('uses_personal_computer', true)->where('personal_computer_status', 'approved')->count(),
+                'assigned' => SeatAssignment::when($examId, fn ($q) => $q->whereHas('registration', fn ($r) => $r->where('exam_id', $examId)))->count(),
+                'unassigned' => max((clone $registrations)->where('status', 'approved')->count() - SeatAssignment::when($examId, fn ($q) => $q->whereHas('registration', fn ($r) => $r->where('exam_id', $examId)))->distinct('exam_registration_id')->count('exam_registration_id'), 0),
+                'incidents' => Incident::when($examId, fn ($q) => $q->whereHas('registration', fn ($r) => $r->where('exam_id', $examId)))->count(),
+                'scores_entered' => ExamScore::when($examId, fn ($q) => $q->whereHas('registration', fn ($r) => $r->where('exam_id', $examId)))->whereIn('score_status', ['entered', 'verified', 'locked'])->count(),
+                'scores_missing' => max((clone $registrations)->count() - ExamScore::when($examId, fn ($q) => $q->whereHas('registration', fn ($r) => $r->where('exam_id', $examId)))->count(), 0),
+                'sessions_grade_10' => $sessions->where('target_grade', 10)->count(),
+                'sessions_grade_11' => $sessions->where('target_grade', 11)->count(),
+                'sessions_grade_12' => $sessions->where('target_grade', 12)->count(),
+                'sessions_open' => $sessions->filter(fn (ExamSession $session) => $session->status === 'open' && $availability->remainingSlots($session) > 0)->count(),
+                'sessions_full' => $sessions->filter(fn (ExamSession $session) => $availability->remainingSlots($session) <= 0 || $session->status === 'full')->count(),
+                'sessions_locked' => $sessions->where('status', 'locked')->count(),
+                'missing_session' => (clone $registrations)->whereNull('exam_session_id')->count(),
+                'wrong_session' => $wrongSessions,
+                'broken_computers' => RoomComputer::whereIn('status', ['broken', 'maintenance'])->count(),
+            ],
+            'gradeCounts' => ExamRegistration::selectRaw('class_name, count(*) as total')
+                ->when($examId, fn ($q) => $q->where('exam_id', $examId))
+                ->groupBy('class_name')
+                ->orderBy('class_name')
+                ->get(),
+            'nearlyFullSessions' => $sessions->filter(fn (ExamSession $session) => $session->status === 'open' && $availability->remainingSlots($session) <= 3)->values(),
+        ]);
+    }
+}
