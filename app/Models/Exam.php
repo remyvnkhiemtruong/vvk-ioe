@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 class Exam extends Model
@@ -13,8 +14,10 @@ class Exam extends Model
 
     protected $fillable = [
         'name',
+        'code',
         'school_year',
         'academic_year_id',
+        'exam_level_id',
         'level',
         'template_type',
         'external_platform_name',
@@ -32,7 +35,13 @@ class Exam extends Model
         'target_classes',
         'max_score_rule',
         'result_source',
+        'source',
+        'has_imported_results',
+        'imported_results_count',
         'settings',
+        'timezone',
+        'created_by',
+        'updated_by',
         'allow_student_edit',
         'allow_student_session_change',
         'require_session_choice',
@@ -62,6 +71,7 @@ class Exam extends Model
             'target_classes' => 'array',
             'max_score_rule' => 'array',
             'settings' => 'array',
+            'has_imported_results' => 'boolean',
             'allow_student_edit' => 'boolean',
             'allow_student_session_change' => 'boolean',
             'require_session_choice' => 'boolean',
@@ -82,6 +92,31 @@ class Exam extends Model
     public function sessions(): HasMany
     {
         return $this->hasMany(ExamSession::class);
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function examLevel(): BelongsTo
+    {
+        return $this->belongsTo(ExamLevel::class);
+    }
+
+    public function examStudents(): HasMany
+    {
+        return $this->hasMany(ExamStudent::class);
+    }
+
+    public function studentScores(): HasMany
+    {
+        return $this->hasMany(StudentScore::class);
+    }
+
+    public function awardRules(): HasMany
+    {
+        return $this->hasMany(AwardRule::class);
     }
 
     public function formFields(): HasMany

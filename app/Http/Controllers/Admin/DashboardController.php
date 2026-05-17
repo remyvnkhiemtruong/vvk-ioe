@@ -4,29 +4,41 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Models\AcademicYearStudent;
+use App\Models\AwardRecord;
+use App\Models\ExamCode;
 use App\Models\ExamChecklist;
+use App\Models\ExamStudent;
 use App\Models\ExamMinute;
 use App\Models\ExamRegistration;
 use App\Models\ExamScore;
 use App\Models\ExamSession;
+use App\Models\ExamTimeWindow;
 use App\Models\Incident;
+use App\Models\LiveScreen;
 use App\Models\RoomComputer;
 use App\Models\SchoolClass;
 use App\Models\SeatAssignment;
 use App\Models\StaffProfile;
 use App\Models\Student;
+use App\Models\StudentScore;
 use App\Models\VideoEvidence;
 use App\Services\ExamSessionAvailabilityService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
     public function __invoke(ExamSessionAvailabilityService $availability): View
     {
-        $exam = Exam::where('level', 'school')->latest()->first();
+        $exam = Exam::whereNotNull('code')->latest('id')->first()
+            ?? Exam::where('level', 'school')->latest('id')->first();
         $examId = $exam?->id;
         $registrations = ExamRegistration::when($examId, fn ($q) => $q->where('exam_id', $examId));
         $sessions = ExamSession::when($examId, fn ($q) => $q->where('exam_id', $examId))->get();
+        $internalStudents = ExamStudent::when($examId, fn ($q) => $q->where('exam_id', $examId));
+        $studentScores = StudentScore::when($examId, fn ($q) => $q->where('exam_id', $examId));
+        $sessionIds = $examId ? ExamSession::where('exam_id', $examId)->pluck('id') : collect();
 
         $wrongSessions = ExamRegistration::with(['exam', 'student', 'chosenSession'])
             ->when($examId, fn ($q) => $q->where('exam_id', $examId))
@@ -67,6 +79,19 @@ class DashboardController extends Controller
                 'missing_checklists' => $examId ? $this->missingByRoomSession($examId, ExamChecklist::class) : 0,
                 'missing_minutes' => $examId ? $this->missingByRoomSession($examId, ExamMinute::class) : 0,
                 'missing_videos' => $examId ? $this->missingByRoomSession($examId, VideoEvidence::class) : 0,
+                'internal_students' => (clone $internalStudents)->count(),
+                'internal_eligible' => (clone $internalStudents)->where('eligibility_status', 'eligible')->count(),
+                'internal_ineligible' => (clone $internalStudents)->where('eligibility_status', 'ineligible')->count(),
+                'registered_on_ioe' => (clone $internalStudents)->where('registered_on_ioe', true)->count(),
+                'assigned_to_slot' => (clone $internalStudents)->whereNotNull('assigned_time_slot_id')->count(),
+                'time_slots_with_students' => $sessionIds->isEmpty() ? 0 : ExamTimeWindow::whereIn('exam_session_id', $sessionIds)
+                    ->where(fn ($q) => $q->where('has_students', true)->orWhere('student_count', '>', 0))
+                    ->count(),
+                'v2_scores_entered' => (clone $studentScores)->whereNotNull('score')->count(),
+                'v2_scores_locked' => (clone $studentScores)->where('status', 'locked')->count(),
+                'award_records' => $examId ? AwardRecord::where('exam_id', $examId)->count() : AwardRecord::count(),
+                'live_screens' => $examId ? LiveScreen::where('exam_id', $examId)->count() : 0,
+                'rollover_2026_2027' => AcademicYearStudent::whereHas('academicYear', fn ($q) => $q->where('code', '2026-2027'))->count(),
             ],
             'gradeCounts' => ExamRegistration::selectRaw('class_name, count(*) as total')
                 ->when($examId, fn ($q) => $q->where('exam_id', $examId))
@@ -74,6 +99,39 @@ class DashboardController extends Controller
                 ->orderBy('class_name')
                 ->get(),
             'nearlyFullSessions' => $sessions->filter(fn (ExamSession $session) => $session->status === 'open' && $availability->remainingSlots($session) <= 3)->values(),
+            'latestInternalExam' => $exam,
+            'topScores' => $examId
+                ? StudentScore::where('exam_id', $examId)
+                    ->whereNotNull('score')
+                    ->with('student')
+                    ->orderByDesc('score')
+                    ->orderBy('duration_seconds')
+                    ->limit(8)
+                    ->get()
+                : collect(),
+            'awardCounts' => AwardRecord::select('award_scope', DB::raw('count(*) as total'))
+                ->groupBy('award_scope')
+                ->orderBy('award_scope')
+                ->get(),
+            'rolloverCounts' => AcademicYearStudent::whereHas('academicYear', fn ($q) => $q->where('code', '2026-2027'))
+                ->select('status', DB::raw('count(*) as total'))
+                ->groupBy('status')
+                ->pluck('total', 'status'),
+            'slotWarnings' => $sessionIds->isEmpty()
+                ? collect()
+                : ExamTimeWindow::whereIn('exam_session_id', $sessionIds)
+                    ->where(fn ($q) => $q->where('has_students', true)->orWhere('student_count', '>', 0))
+                    ->with('session')
+                    ->orderBy('starts_at')
+                    ->get()
+                    ->filter(fn (ExamTimeWindow $slot) => ! ExamCode::where('is_active', true)
+                        ->where(fn ($q) => $q->where('exam_time_slot_id', $slot->id)
+                            ->orWhere(fn ($fallback) => $fallback
+                                ->where('exam_session_id', $slot->exam_session_id)
+                                ->whereNull('exam_time_slot_id')))
+                        ->exists())
+                    ->take(8)
+                    ->values(),
         ]);
     }
 

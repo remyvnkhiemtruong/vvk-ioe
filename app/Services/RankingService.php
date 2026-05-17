@@ -28,7 +28,7 @@ class RankingService
     public function run(Exam $exam, string $scope = 'school', ?int $gradeNumber = null): int
     {
         $query = StudentScore::where('exam_id', $exam->id)
-            ->whereIn('status', ['submitted', 'locked'])
+            ->whereIn('status', ['submitted', 'locked', 'ranked'])
             ->where('exclude_from_awards', false)
             ->whereNotNull('score');
 
@@ -60,7 +60,7 @@ class RankingService
 
         // Đánh dấu điểm đã xếp hạng
         StudentScore::where('exam_id', $exam->id)
-            ->whereIn('status', ['submitted', 'locked'])
+            ->whereIn('status', ['submitted', 'locked', 'ranked'])
             ->update(['status' => 'ranked', 'needs_rerank' => false]);
 
         return $total;
@@ -72,7 +72,7 @@ class RankingService
     private function rankGroup(Exam $exam, string $scope, int $gradeNumber, Collection $scores): int
     {
         // Sắp xếp: điểm DESC, thời gian ASC (ngắn hơn xếp trên), null thời gian xuống cuối
-        $sorted = $scores->sortWith(function (StudentScore $a, StudentScore $b): int {
+        $sorted = $scores->sort(function (StudentScore $a, StudentScore $b): int {
             if ($a->score != $b->score) {
                 return $b->score <=> $a->score; // Điểm cao hơn đứng trước
             }

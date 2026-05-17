@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\ExamStudent;
+use App\Models\ExamTimeWindow;
 use App\Models\StudentScore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,8 +56,8 @@ class ScoreEntryController extends Controller
             'note'            => 'nullable|string',
         ]);
 
-        $examStudent = ExamStudent::with('exam')->findOrFail($data['exam_student_id']);
-        $this->validateScore($data, $examStudent->exam);
+        $examStudent = ExamStudent::with(['exam', 'assignedTimeSlot'])->findOrFail($data['exam_student_id']);
+        $this->validateScore($data, $examStudent->exam, $examStudent->assignedTimeSlot);
 
         // Prevent duplicate
         if (StudentScore::where('exam_id', $exam->id)->where('student_id', $examStudent->student_id)->exists()) {
@@ -72,6 +73,8 @@ class ScoreEntryController extends Controller
             'score'           => $data['score'],
             'max_score'       => $data['max_score'] ?? 2000,
             'duration_seconds'=> $data['duration_seconds'] ?? null,
+            'exam_session_id'  => $examStudent->assignedTimeSlot?->exam_session_id,
+            'exam_time_slot_id'=> $examStudent->assigned_time_slot_id,
             'entered_by'      => auth()->id(),
             'entered_at'      => now(),
             'status'          => 'draft',
@@ -97,7 +100,8 @@ class ScoreEntryController extends Controller
             'note'            => 'nullable|string',
         ]);
 
-        $this->validateScore($data, $exam);
+        $studentScore->loadMissing('timeSlot');
+        $this->validateScore($data, $exam, $studentScore->timeSlot);
 
         $studentScore->update(array_merge($data, [
             'entered_by'  => auth()->id(),
@@ -139,13 +143,22 @@ class ScoreEntryController extends Controller
         return back()->with('success', 'Đã mở khóa điểm.');
     }
 
-    private function validateScore(array $data, Exam $exam): void
+    private function validateScore(array $data, Exam $exam, ?ExamTimeWindow $slot = null): void
     {
         $maxScore = $data['max_score'] ?? 2000;
 
         if ($data['score'] > $maxScore) {
             throw ValidationException::withMessages([
                 'score' => "Điểm ({$data['score']}) vượt quá điểm tối đa ({$maxScore}).",
+            ]);
+        }
+
+        $duration = $data['duration_seconds'] ?? null;
+        $limitMinutes = $slot?->duration_minutes ?? $slot?->max_duration_minutes;
+
+        if ($duration !== null && $limitMinutes && $duration > ($limitMinutes * 60) && ! auth()->user()?->can('scores.lock')) {
+            throw ValidationException::withMessages([
+                'duration_seconds' => 'Thời gian làm bài vượt quá thời lượng khung giờ thi.',
             ]);
         }
     }

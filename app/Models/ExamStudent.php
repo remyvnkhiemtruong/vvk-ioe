@@ -10,7 +10,7 @@ class ExamStudent extends Model
 {
     // Bảng: exam_students
     protected $fillable = [
-        'exam_id', 'student_id', 'grade_number', 'class_name',
+        'exam_id', 'student_id', 'grade_number', 'school_id', 'class_name',
         'ioe_username', 'ioe_account_id', 'ioe_account_verified',
         'self_training_round', 'status', 'eligibility_status', 'ineligible_reasons',
         'registered_on_ioe', 'registered_on_ioe_at',
@@ -51,6 +51,11 @@ class ExamStudent extends Model
     public function assignedTimeSlot(): BelongsTo
     {
         return $this->belongsTo(ExamTimeWindow::class, 'assigned_time_slot_id');
+    }
+
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
     }
 
     public function selectedBy(): BelongsTo

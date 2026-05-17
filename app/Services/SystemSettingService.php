@@ -70,7 +70,13 @@ class SystemSettingService
         $disk = is_array($setting) ? ($setting['disk'] ?? 'public') : 'public';
         $path = is_array($setting) ? ($setting['path'] ?? null) : null;
 
-        return $path ? Storage::disk($disk)->url($path) : null;
+        if (! $path) {
+            return null;
+        }
+
+        return $disk === 'public'
+            ? '/storage/'.ltrim($path, '/')
+            : Storage::disk($disk)->url($path);
     }
 
     public function storeLogo(UploadedFile $file): void

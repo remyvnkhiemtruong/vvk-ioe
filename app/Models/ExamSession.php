@@ -15,9 +15,11 @@ class ExamSession extends Model
     protected $fillable = [
         'exam_id',
         'exam_room_id',
+        'code',
         'name',
         'session_name',
         'session_date',
+        'session_period',
         'starts_at',
         'ends_at',
         'exam_date',
@@ -30,6 +32,10 @@ class ExamSession extends Model
         'code_visible_from',
         'max_candidates',
         'status',
+        'source',
+        'mapping_status',
+        'official_reference_session_id',
+        'import_note',
         'note',
         'created_by',
     ];
@@ -80,6 +86,16 @@ class ExamSession extends Model
     public function validRegistrations(): HasMany
     {
         return $this->registrations()->whereIn('status', ['submitted', 'pending', 'approved']);
+    }
+
+    public function timeWindows(): HasMany
+    {
+        return $this->hasMany(ExamTimeWindow::class, 'exam_session_id');
+    }
+
+    public function officialReferenceSession(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'official_reference_session_id');
     }
 
     public function remainingSlots(?int $ignoreRegistrationId = null): int

@@ -9,8 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class StudentScore extends Model
 {
     protected $fillable = [
-        'exam_id', 'exam_student_id', 'student_id', 'grade_number', 'class_name',
-        'score', 'max_score', 'duration_seconds',
+        'exam_id', 'exam_student_id', 'student_id', 'grade_number', 'school_id', 'class_name',
+        'score', 'max_score', 'duration_seconds', 'raw_duration_text', 'raw_exam_taken_at',
+        'exam_session_id', 'exam_time_slot_id', 'source_key', 'mapping_status',
+        'mapping_note', 'imported_from_file',
         'entered_by', 'entered_at', 'locked_by', 'locked_at',
         'status', 'exclude_from_awards', 'exclude_reason', 'note', 'needs_rerank',
     ];
@@ -20,6 +22,7 @@ class StudentScore extends Model
         return [
             'entered_at' => 'datetime',
             'locked_at' => 'datetime',
+            'raw_exam_taken_at' => 'datetime',
             'exclude_from_awards' => 'boolean',
             'needs_rerank' => 'boolean',
         ];
@@ -45,6 +48,21 @@ class StudentScore extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function session(): BelongsTo
+    {
+        return $this->belongsTo(ExamSession::class, 'exam_session_id');
+    }
+
+    public function timeSlot(): BelongsTo
+    {
+        return $this->belongsTo(ExamTimeWindow::class, 'exam_time_slot_id');
     }
 
     public function enteredBy(): BelongsTo

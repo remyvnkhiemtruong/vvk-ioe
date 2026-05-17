@@ -16,7 +16,6 @@ class RankingController extends Controller
     public function index(Request $request, Exam $exam): View
     {
         $query = Ranking::where('exam_id', $exam->id)
-            ->where('is_highest_award', true)
             ->with(['student', 'studentScore', 'awardRule'])
             ->orderBy('grade_number')
             ->orderBy('rank');

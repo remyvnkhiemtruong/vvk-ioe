@@ -1,44 +1,55 @@
 <nav x-data="{ open: false }" class="border-b border-slate-200 bg-white">
+    @auth
+        @php
+            $navExam = \App\Models\Exam::query()->whereNotNull('code')->latest('id')->first()
+                ?? \App\Models\Exam::query()->latest('id')->first();
+        @endphp
+    @endauth
+
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 justify-between">
             <div class="flex">
                 <div class="flex shrink-0 items-center">
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
                         <x-application-logo class="h-10 w-10 rounded-full" />
-                        <span class="hidden text-sm font-semibold leading-tight text-slate-800 sm:block">THPT Võ Văn Kiệt<br><span class="font-normal text-slate-500">IOE cấp trường</span></span>
+                        <span class="hidden text-sm font-semibold leading-tight text-slate-800 sm:block">
+                            THPT Võ Văn Kiệt<br>
+                            <span class="font-normal text-slate-500">IOE nội bộ</span>
+                        </span>
                     </a>
                 </div>
 
                 <div class="hidden space-x-6 sm:-my-px sm:ms-8 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">Tổng quan</x-nav-link>
                     @auth
-                        @can('registrations.view')
-                            <x-nav-link :href="route('admin.registrations.index')" :active="request()->routeIs('admin.registrations.*')">Đăng ký</x-nav-link>
-                        @endcan
-                        @can('students.view')
-                            <x-nav-link :href="route('admin.students.index')" :active="request()->routeIs('admin.students.*')">Học sinh</x-nav-link>
+                        @can('exams.manage')
+                            <x-nav-link :href="route('admin.exams.index')" :active="request()->routeIs('admin.exams.*')">Kỳ thi</x-nav-link>
+                            @if($navExam)
+                                <x-nav-link :href="route('admin.exam-students.index', $navExam)" :active="request()->routeIs('admin.exam-students.*')">Học sinh nội bộ</x-nav-link>
+                                <x-nav-link :href="route('admin.exam-codes.index', $navExam)" :active="request()->routeIs('admin.exam-codes.*')">Mã ca</x-nav-link>
+                                <x-nav-link :href="route('admin.live-screens.index', $navExam)" :active="request()->routeIs('admin.live-screens.*')">Live</x-nav-link>
+                                <x-nav-link :href="route('admin.exam.rankings.index', $navExam)" :active="request()->routeIs('admin.exam.rankings.*') || request()->routeIs('admin.exam.awards.*')">Xếp giải</x-nav-link>
+                            @endif
                         @endcan
                         @can('sessions.manage')
-                            <x-nav-link :href="route('admin.sessions.index')" :active="request()->routeIs('admin.sessions.*')">Ca thi</x-nav-link>
-                        @endcan
-                        @can('form.manage')
-                            <x-nav-link :href="route('admin.form_fields.index')" :active="request()->routeIs('admin.form_fields.*')">Form đăng ký</x-nav-link>
-                        @endcan
-                        @can('assignments.manage')
-                            <x-nav-link :href="route('admin.assignments.index')" :active="request()->routeIs('admin.assignments.*')">Phân phòng</x-nav-link>
-                            <x-nav-link :href="route('admin.proctors.index')" :active="request()->routeIs('admin.proctors.*')">Giám thị</x-nav-link>
+                            <x-nav-link :href="route('admin.sessions.index')" :active="request()->routeIs('admin.sessions.*')">Lịch/khung giờ</x-nav-link>
                         @endcan
                         @can('scores.enter')
-                            <x-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.scores.index') : route('admin.scores.index')" :active="request()->routeIs('admin.scores.*') || request()->routeIs('proctor.scores.*')">Điểm</x-nav-link>
+                            @php
+                                $scoreHref = auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher()
+                                    ? route('proctor.scores.index')
+                                    : ($navExam ? route('admin.score-entry.index', $navExam) : route('admin.scores.index'));
+                            @endphp
+                            <x-nav-link
+                                :href="$scoreHref"
+                                :active="request()->routeIs('admin.score-entry.*') || request()->routeIs('admin.scores.*') || request()->routeIs('proctor.scores.*')"
+                            >Nhập điểm</x-nav-link>
                         @endcan
-                        @can('checkins.manage')
-                            <x-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.checkins.index') : route('admin.checkins.index')" :active="request()->routeIs('admin.checkins.*') || request()->routeIs('proctor.checkins.*')">Check-in</x-nav-link>
+                        @can('students.view')
+                            <x-nav-link :href="route('admin.students.index')" :active="request()->routeIs('admin.students.*')">Hồ sơ học sinh</x-nav-link>
                         @endcan
-                        @can('attendance.manage')
-                            <x-nav-link :href="route('admin.monitoring.index')" :active="request()->routeIs('admin.monitoring.*')">Giám sát</x-nav-link>
-                        @endcan
-                        @can('research.manage')
-                            <x-nav-link :href="route('admin.research.index')" :active="request()->routeIs('admin.research.*')">Nghiên cứu IOE</x-nav-link>
+                        @can('registrations.view')
+                            <x-nav-link :href="route('admin.registrations.index')" :active="request()->routeIs('admin.registrations.*')">Đăng ký legacy</x-nav-link>
                         @endcan
                         @can('settings.manage')
                             <x-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">Cài đặt</x-nav-link>
@@ -55,7 +66,7 @@
                     <x-slot name="trigger">
                         <button class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition hover:text-gray-700 focus:outline-none">
                             @php $avaUrl = Auth::user()->avatarUrl(); @endphp
-                            <img src="{{ $avaUrl }}" alt="" class="h-7 w-7 rounded-full object-cover mr-2">
+                            <img src="{{ $avaUrl }}" alt="" class="mr-2 h-7 w-7 rounded-full object-cover">
                             <div>{{ Auth::user()->name }}</div>
                             <div class="ms-1">
                                 <svg class="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -89,15 +100,23 @@
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="space-y-1 pb-3 pt-2">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">Tổng quan</x-responsive-nav-link>
-            @can('registrations.view')<x-responsive-nav-link :href="route('admin.registrations.index')">Đăng ký</x-responsive-nav-link>@endcan
-            @can('students.view')<x-responsive-nav-link :href="route('admin.students.index')">Học sinh</x-responsive-nav-link>@endcan
-            @can('sessions.manage')<x-responsive-nav-link :href="route('admin.sessions.index')">Ca thi</x-responsive-nav-link>@endcan
-            @can('form.manage')<x-responsive-nav-link :href="route('admin.form_fields.index')">Form đăng ký</x-responsive-nav-link>@endcan
-            @can('assignments.manage')<x-responsive-nav-link :href="route('admin.assignments.index')">Phân phòng</x-responsive-nav-link><x-responsive-nav-link :href="route('admin.proctors.index')">Giám thị</x-responsive-nav-link>@endcan
-            @can('checkins.manage')<x-responsive-nav-link :href="auth()->user()->isProctor() && ! auth()->user()->isAdmin() && ! auth()->user()->isTeacher() ? route('proctor.checkins.index') : route('admin.checkins.index')">Check-in</x-responsive-nav-link>@endcan
-            @can('attendance.manage')<x-responsive-nav-link :href="route('admin.monitoring.index')">Giám sát</x-responsive-nav-link>@endcan
-            @can('settings.manage')<x-responsive-nav-link :href="route('admin.settings.index')">Cài đặt</x-responsive-nav-link>@endcan
-            @can('staff.manage')<x-responsive-nav-link :href="route('admin.staff.index')">Nhân sự</x-responsive-nav-link>@endcan
+            @auth
+                @can('exams.manage')
+                    <x-responsive-nav-link :href="route('admin.exams.index')">Kỳ thi</x-responsive-nav-link>
+                    @if($navExam)
+                        <x-responsive-nav-link :href="route('admin.exam-students.index', $navExam)">Học sinh nội bộ</x-responsive-nav-link>
+                        <x-responsive-nav-link :href="route('admin.exam-codes.index', $navExam)">Mã ca</x-responsive-nav-link>
+                        <x-responsive-nav-link :href="route('admin.live-screens.index', $navExam)">Live</x-responsive-nav-link>
+                        <x-responsive-nav-link :href="route('admin.exam.rankings.index', $navExam)">Xếp giải</x-responsive-nav-link>
+                    @endif
+                @endcan
+                @can('sessions.manage')<x-responsive-nav-link :href="route('admin.sessions.index')">Lịch/khung giờ</x-responsive-nav-link>@endcan
+                @can('scores.enter')<x-responsive-nav-link :href="$scoreHref ?? route('admin.scores.index')">Nhập điểm</x-responsive-nav-link>@endcan
+                @can('students.view')<x-responsive-nav-link :href="route('admin.students.index')">Hồ sơ học sinh</x-responsive-nav-link>@endcan
+                @can('registrations.view')<x-responsive-nav-link :href="route('admin.registrations.index')">Đăng ký legacy</x-responsive-nav-link>@endcan
+                @can('settings.manage')<x-responsive-nav-link :href="route('admin.settings.index')">Cài đặt</x-responsive-nav-link>@endcan
+                @can('staff.manage')<x-responsive-nav-link :href="route('admin.staff.index')">Nhân sự</x-responsive-nav-link>@endcan
+            @endauth
         </div>
         <div class="border-t border-gray-200 pb-1 pt-4">
             <div class="px-4">

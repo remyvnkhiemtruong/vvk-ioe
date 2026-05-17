@@ -88,7 +88,7 @@ class EligibilityService
             'eligibility_status'  => $eligible ? 'eligible' : 'ineligible',
             'ineligible_reasons'  => $eligible ? null : $reasons,
             'status'              => $eligible
-                ? ($examStudent->status === 'draft' ? 'eligible' : $examStudent->status)
+                ? (in_array($examStudent->status, ['draft', 'ineligible'], true) ? 'eligible' : $examStudent->status)
                 : 'ineligible',
         ]);
 

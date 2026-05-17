@@ -16,10 +16,10 @@ class ExamTimeWindow extends Model
     protected $table = 'exam_time_windows';
 
     protected $fillable = [
-        'exam_session_id', 'grade_id', 'name', 'grade_ids',
-        'grade_group', 'starts_at', 'ends_at', 'max_duration_minutes',
+        'exam_session_id', 'code', 'grade_id', 'name', 'grade_ids',
+        'grade_group', 'starts_at', 'ends_at', 'duration_minutes', 'max_duration_minutes',
         'code_reveal_before_minutes', 'code_hide_after_start_minutes',
-        'has_students', 'student_count', 'status', 'note',
+        'has_students', 'student_count', 'status', 'source', 'mapping_status', 'note',
     ];
 
     protected function casts(): array
@@ -58,13 +58,13 @@ class ExamTimeWindow extends Model
     /** Thời điểm bắt đầu hiện mã (trước giờ thi X phút) */
     public function revealAt(): \Carbon\Carbon
     {
-        return $this->starts_at->subMinutes($this->code_reveal_before_minutes ?? 5);
+        return $this->starts_at->copy()->subMinutes($this->code_reveal_before_minutes ?? 5);
     }
 
     /** Thời điểm ẩn mã (sau giờ thi bắt đầu X phút) */
     public function hideAt(): \Carbon\Carbon
     {
-        return $this->starts_at->addMinutes($this->code_hide_after_start_minutes ?? 5);
+        return $this->starts_at->copy()->addMinutes($this->code_hide_after_start_minutes ?? 5);
     }
 
     /** Lấy mã ca thi active cho slot này */

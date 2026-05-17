@@ -11,7 +11,7 @@ class LiveScreen extends Model
 {
     protected $fillable = [
         'exam_id', 'exam_session_id', 'token', 'is_enabled',
-        'scope_type', 'display_title',
+        'scope_type', 'scope_id', 'display_title',
         'admin_override_hide', 'admin_override_show', 'force_ended_at',
         'created_by', 'updated_by',
     ];

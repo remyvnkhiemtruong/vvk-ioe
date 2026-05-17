@@ -15,17 +15,24 @@ class Student extends Model
 
     protected $fillable = [
         'full_name',
+        'normalized_name',
         'grade',
         'grade_id',
         'class_name',
         'school_class_id',
         'academic_year_id',
+        'school_id',
         'student_code',
+        'ioe_account_id',
         'identity_number',
         'ministry_identifier',
         'date_of_birth',
         'gender',
         'ethnicity',
+        'is_verified',
+        'current_self_training_round',
+        'imported_from_ioe',
+        'source_academic_year',
         'phone',
         'email',
         'address',
@@ -41,6 +48,8 @@ class Student extends Model
             'date_of_birth' => 'date',
             'grade' => 'integer',
             'health_metadata' => 'array',
+            'is_verified' => 'boolean',
+            'imported_from_ioe' => 'boolean',
         ];
     }
 
@@ -77,6 +86,26 @@ class Student extends Model
     public function academicYear(): BelongsTo
     {
         return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function school(): BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function selfTrainingProgress(): HasMany
+    {
+        return $this->hasMany(SelfTrainingProgress::class);
+    }
+
+    public function studentScores(): HasMany
+    {
+        return $this->hasMany(StudentScore::class);
+    }
+
+    public function awardRecords(): HasMany
+    {
+        return $this->hasMany(AwardRecord::class);
     }
 
     public function maskedIdentity(): string

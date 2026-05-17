@@ -4,7 +4,9 @@
         : null;
     $disk = is_array($setting) ? ($setting['disk'] ?? 'public') : 'public';
     $path = is_array($setting) ? ($setting['path'] ?? null) : null;
-    $logoUrl = $path ? \Illuminate\Support\Facades\Storage::disk($disk)->url($path) : null;
+    $logoUrl = $path
+        ? ($disk === 'public' ? '/storage/'.ltrim($path, '/') : \Illuminate\Support\Facades\Storage::disk($disk)->url($path))
+        : null;
 @endphp
 
 @if($logoUrl)

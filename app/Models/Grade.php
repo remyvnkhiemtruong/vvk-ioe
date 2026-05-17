@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Grade extends Model
 {
-    protected $fillable = ['grade_number', 'name', 'status'];
+    protected $fillable = ['grade_number', 'numeric_level', 'education_stage', 'name', 'status'];
 
     protected function casts(): array
     {

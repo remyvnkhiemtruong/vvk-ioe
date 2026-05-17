@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class LiveScreenService
 {
+    public function __construct(private readonly ExamCodeService $codeService) {}
+
     // ── Statuses ─────────────────────────────────────────────────────────────
     public const STATUS_NO_SLOTS = 'no_slots';
     public const STATUS_ALL_FINISHED = 'all_finished';
@@ -52,9 +54,14 @@ class LiveScreenService
 
         // ── Lấy danh sách slots có học sinh, chưa hủy, sắp xếp tăng dần ──
         $query = ExamTimeWindow::query()
-            ->where('has_students', true)
-            ->where('status', '!=', 'cancelled')
-            ->where('student_count', '>', 0)
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+            })
+            ->where(function ($q) {
+                $q->where('has_students', true)
+                    ->orWhere('student_count', '>', 0)
+                    ->orWhereHas('assignedStudents', fn ($students) => $students->whereNotIn('status', ['cancelled']));
+            })
             ->orderBy('starts_at', 'asc');
 
         if ($screen->exam_session_id) {
@@ -103,8 +110,13 @@ class LiveScreenService
 
         foreach ($slots as $index => $slot) {
             /** @var ExamTimeWindow $slot */
-            if (! $slot->starts_at || ! $slot->ends_at) {
-                continue; // Bỏ qua slot thiếu thông tin thời gian
+            if (! $slot->starts_at || ! $slot->ends_at || $slot->ends_at->lessThanOrEqualTo($slot->starts_at)) {
+                return $this->buildResponse(self::STATUS_INVALID_SCHEDULE, $now, [
+                    'show_code' => false,
+                    'exam' => $examMeta,
+                    'slot' => $this->slotMeta($slot),
+                    'message' => 'Cấu hình thời gian của khung giờ thi không hợp lệ.',
+                ]);
             }
 
             $revealAt = $slot->revealAt();
@@ -136,7 +148,7 @@ class LiveScreenService
 
             // ── Từ reveal_at đến trước starts_at: HIỆN MÃ ────────────────
             if ($now->gte($revealAt) && $now->lt($slot->starts_at)) {
-                $code = $this->resolveCode($slot);
+                $code = $this->codeService->resolveForSlot($slot);
 
                 if ($code === null) {
                     return $this->buildResponse(self::STATUS_MISSING_CODE, $now, [
@@ -161,7 +173,7 @@ class LiveScreenService
 
             // ── Từ starts_at đến hide_at: VẪN HIỆN MÃ ───────────────────
             if ($now->gte($slot->starts_at) && $now->lt($hideAt)) {
-                $code = $this->resolveCode($slot);
+                $code = $this->codeService->resolveForSlot($slot);
 
                 if ($code === null) {
                     return $this->buildResponse(self::STATUS_MISSING_CODE, $now, [
@@ -249,8 +261,8 @@ class LiveScreenService
             'starts_at'     => $slot->starts_at?->toIso8601String(),
             'ends_at'       => $slot->ends_at?->toIso8601String(),
             'student_count' => $slot->student_count,
-            'reveal_at'     => $slot->revealAt()->toIso8601String(),
-            'hide_at'       => $slot->hideAt()->toIso8601String(),
+            'reveal_at'     => $slot->starts_at ? $slot->revealAt()->toIso8601String() : null,
+            'hide_at'       => $slot->starts_at ? $slot->hideAt()->toIso8601String() : null,
         ];
     }
 
