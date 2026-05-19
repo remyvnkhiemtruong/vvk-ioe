@@ -19,6 +19,9 @@
             <nav class="hidden flex-wrap items-center gap-2 text-sm font-medium md:flex">
                 <a href="{{ route('home') }}" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Trang chủ</a>
                 <a href="#ky-thi" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Kỳ thi</a>
+                @if(data_get($settings->get('score.options', []), 'public_scoreboard', false))
+                    <a href="{{ route('public.leaderboard') }}" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Bảng xếp hạng</a>
+                @endif
                 <a href="#huong-dan" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Hướng dẫn</a>
                 <a href="#lien-he" class="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">Liên hệ</a>
                 <a href="{{ route('login') }}" class="rounded border border-slate-300 px-3 py-2 text-slate-700 hover:bg-slate-50">Đăng nhập</a>
@@ -51,6 +54,9 @@
                         <a href="{{ route('login') }}" class="rounded border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đăng nhập học sinh</a>
                         @if($account['student_registration_enabled'] ?? true)
                             <a href="{{ route('register') }}" class="rounded border border-emerald-700 bg-white px-5 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Tạo tài khoản</a>
+                        @endif
+                        @if(data_get($settings->get('score.options', []), 'public_scoreboard', false))
+                            <a href="{{ route('public.leaderboard') }}" class="rounded border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Bảng xếp hạng</a>
                         @endif
                     </div>
                     @unless($landingState['button_active'])

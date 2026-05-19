@@ -5,6 +5,7 @@
         @if($errors->any())<div class="rounded bg-rose-50 p-3 text-sm text-rose-800">{{ $errors->first() }}</div>@endif
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('admin.students.import') }}" class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">Import Excel</a>
+            <a href="{{ route('admin.students.reset_import') }}" class="rounded bg-rose-700 px-4 py-2 text-sm font-semibold text-white">Reset & nhập mới</a>
             <a href="{{ route('admin.students.export') }}" class="rounded border border-slate-300 px-4 py-2 text-sm font-semibold">Xuất danh sách</a>
         </div>
         <form method="POST" action="{{ route('admin.students.store') }}" class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-6">

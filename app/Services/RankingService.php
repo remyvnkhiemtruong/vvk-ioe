@@ -6,6 +6,7 @@ use App\Models\Exam;
 use App\Models\Ranking;
 use App\Models\StudentScore;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,70 +24,83 @@ class RankingService
      *
      * @param  string  $scope  'school' | 'ward' | 'province' | 'national'
      * @param  int|null  $gradeNumber  Xếp hạng riêng từng khối, null = tất cả
-     * @return int Số học sinh được xếp hạng
+     * @return array<string, mixed> Báo cáo xếp hạng
      */
-    public function run(Exam $exam, string $scope = 'school', ?int $gradeNumber = null): int
+    public function run(Exam $exam, string $scope = 'school', ?int $gradeNumber = null): array
     {
-        $query = StudentScore::where('exam_id', $exam->id)
-            ->whereIn('status', ['submitted', 'locked', 'ranked'])
-            ->where('exclude_from_awards', false)
-            ->whereNotNull('score');
+        return DB::transaction(function () use ($exam, $scope, $gradeNumber): array {
+            $generatedAt = Carbon::now();
+            $query = StudentScore::where('exam_id', $exam->id)
+                ->whereIn('status', ['submitted', 'locked', 'ranked'])
+                ->where('exclude_from_awards', false)
+                ->whereNotNull('score')
+                ->whereNotNull('grade_number');
 
-        if ($gradeNumber !== null) {
-            $query->where('grade_number', $gradeNumber);
-        }
+            if ($gradeNumber !== null) {
+                $query->where('grade_number', $gradeNumber);
+            }
 
-        $scores = $query->get();
+            $scores = $query->get();
 
-        if ($scores->isEmpty()) {
-            return 0;
-        }
+            Ranking::where('exam_id', $exam->id)
+                ->where('scope', $scope)
+                ->when($gradeNumber !== null, fn ($q) => $q->where('grade_number', $gradeNumber))
+                ->delete();
 
-        // Xóa ranking cũ trong cùng scope
-        Ranking::where('exam_id', $exam->id)
-            ->where('scope', $scope)
-            ->when($gradeNumber !== null, fn ($q) => $q->where('grade_number', $gradeNumber))
-            ->delete();
+            $rankedByGrade = [];
+            $rankedScoreIds = [];
 
-        // Nhóm theo khối nếu không chỉ định
-        $gradeGroups = $gradeNumber !== null
-            ? [$gradeNumber => $scores]
-            : $scores->groupBy('grade_number');
+            $gradeGroups = $gradeNumber !== null
+                ? [$gradeNumber => $scores]
+                : $scores->groupBy('grade_number');
 
-        $total = 0;
-        foreach ($gradeGroups as $grade => $gradeScores) {
-            $total += $this->rankGroup($exam, $scope, (int) $grade, $gradeScores);
-        }
+            foreach ($gradeGroups as $grade => $gradeScores) {
+                $result = $this->rankGroup($exam, $scope, (int) $grade, $gradeScores, $generatedAt);
+                $rankedByGrade[(int) $grade] = $result['count'];
+                $rankedScoreIds = array_merge($rankedScoreIds, $result['score_ids']);
+            }
 
-        // Đánh dấu điểm đã xếp hạng
-        StudentScore::where('exam_id', $exam->id)
-            ->whereIn('status', ['submitted', 'locked', 'ranked'])
-            ->update(['status' => 'ranked', 'needs_rerank' => false]);
+            if ($rankedScoreIds !== []) {
+                StudentScore::whereIn('id', $rankedScoreIds)
+                    ->update(['status' => 'ranked', 'needs_rerank' => false]);
+            }
 
-        return $total;
+            return [
+                'exam_id' => $exam->id,
+                'scope' => $scope,
+                'grade_number' => $gradeNumber,
+                'total_ranked' => array_sum($rankedByGrade),
+                'ranked_by_grade' => $rankedByGrade,
+                'generated_at' => $generatedAt,
+            ];
+        });
     }
 
     /**
      * Xếp hạng một nhóm học sinh cùng khối.
      */
-    private function rankGroup(Exam $exam, string $scope, int $gradeNumber, Collection $scores): int
+    private function rankGroup(Exam $exam, string $scope, int $gradeNumber, Collection $scores, Carbon $generatedAt): array
     {
         // Sắp xếp: điểm DESC, thời gian ASC (ngắn hơn xếp trên), null thời gian xuống cuối
         $sorted = $scores->sort(function (StudentScore $a, StudentScore $b): int {
-            if ($a->score != $b->score) {
-                return $b->score <=> $a->score; // Điểm cao hơn đứng trước
+            if ((float) $a->score !== (float) $b->score) {
+                return (float) $b->score <=> (float) $a->score; // Điểm cao hơn đứng trước
             }
 
             // Bằng điểm → thời gian làm bài ngắn hơn đứng trước
             $aTime = $a->duration_seconds ?? PHP_INT_MAX;
             $bTime = $b->duration_seconds ?? PHP_INT_MAX;
 
-            return $aTime <=> $bTime;
+            if ($aTime !== $bTime) {
+                return $aTime <=> $bTime;
+            }
+
+            return $a->student_id <=> $b->student_id;
         })->values();
 
-        $now  = Carbon::now();
         $rank = 1;
         $count = 0;
+        $scoreIds = [];
 
         foreach ($sorted as $i => $score) {
             // Competition ranking: cùng điểm + thời gian → cùng hạng
@@ -105,10 +119,10 @@ class RankingService
                     'exam_id'          => $exam->id,
                     'student_score_id' => $score->id,
                     'scope'            => $scope,
+                    'grade_number'     => $gradeNumber,
                 ],
                 [
                     'student_id'      => $score->student_id,
-                    'grade_number'    => $gradeNumber,
                     'rank'            => $rank,
                     'score'           => $score->score,
                     'duration_seconds' => $score->duration_seconds,
@@ -116,13 +130,14 @@ class RankingService
                     'award_name'      => null,
                     'award_code'      => null,
                     'is_highest_award' => false,
-                    'generated_at'    => $now,
+                    'generated_at'    => $generatedAt,
                 ]
             );
 
             $count++;
+            $scoreIds[] = $score->id;
         }
 
-        return $count;
+        return ['count' => $count, 'score_ids' => $scoreIds];
     }
 }

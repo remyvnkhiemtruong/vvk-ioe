@@ -23,6 +23,8 @@ use App\Http\Controllers\Admin\StudentImportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Proctor\DashboardController as ProctorDashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicLeaderboardController;
+use App\Http\Controllers\StudentCodeLookupController;
 use App\Http\Controllers\Student\ProfileController as StudentProfileController;
 use App\Http\Controllers\Student\RegistrationController as StudentRegistrationController;
 use App\Http\Controllers\LiveController;
@@ -37,6 +39,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', HomeController::class)->name('home');
 Route::view('/huong-dan', 'pages.guide')->name('guide');
 Route::view('/lien-he', 'pages.contact')->name('contact');
+Route::get('/tra-cuu-ma-hoc-sinh', [StudentCodeLookupController::class, 'create'])->name('student_code.lookup');
+Route::post('/tra-cuu-ma-hoc-sinh', [StudentCodeLookupController::class, 'store'])->middleware('throttle:10,1')->name('student_code.lookup.store');
+Route::get('/bang-xep-hang', [PublicLeaderboardController::class, 'index'])->name('public.leaderboard');
+Route::get('/bang-xep-hang/{exam}', [PublicLeaderboardController::class, 'show'])->name('public.leaderboard.exam');
 
 // ── Live screen – public với token (không auth) ──────────────────────────────
 Route::get('/live/{token}', [LiveController::class, 'show'])->name('live.show');
@@ -86,6 +92,10 @@ Route::middleware(['auth', 'role:admin|super_admin|exam_admin|teacher'])->prefix
     Route::post('/students/import/preview', [StudentImportController::class, 'preview'])->middleware('permission:students.import')->name('students.import.preview');
     Route::get('/students/import/{batch}', [StudentImportController::class, 'show'])->middleware('permission:students.import')->name('students.import.show');
     Route::post('/students/import/{batch}/commit', [StudentImportController::class, 'commit'])->middleware('permission:students.import')->name('students.import.commit');
+    Route::get('/students/reset-import', [StudentImportController::class, 'resetCreate'])->middleware('permission:students.import')->name('students.reset_import');
+    Route::post('/students/reset-import/preview', [StudentImportController::class, 'resetPreview'])->middleware('permission:students.import')->name('students.reset_import.preview');
+    Route::get('/students/reset-import/{batch}', [StudentImportController::class, 'resetShow'])->middleware('permission:students.import')->name('students.reset_import.show');
+    Route::post('/students/reset-import/{batch}/commit', [StudentImportController::class, 'resetCommit'])->middleware('permission:students.import')->name('students.reset_import.commit');
 
     Route::get('/exams', [ExamController::class, 'index'])->middleware('permission:exams.manage')->name('exams.index');
     Route::post('/exams', [ExamController::class, 'store'])->middleware('permission:exams.manage')->name('exams.store');
@@ -220,6 +230,7 @@ Route::middleware(['auth', 'role:admin|super_admin|exam_admin|teacher'])->prefix
         Route::post('/rankings/run', [RankingController::class, 'run'])->name('rankings.run');
         Route::get('/awards', [AwardController::class, 'index'])->name('awards.index');
         Route::post('/awards/run', [AwardController::class, 'run'])->name('awards.run');
+        Route::put('/awards/rules/{awardRule}', [AwardController::class, 'updateRule'])->name('awards.rules.update');
     });
 });
 

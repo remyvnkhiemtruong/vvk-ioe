@@ -42,7 +42,8 @@ class AccountController extends Controller
             ->where('class_name', $request->string('class_name'))
             ->where(function ($query) use ($request) {
                 $query->where('student_code', $request->string('credential'))
-                    ->orWhere('identity_number', $request->string('credential'));
+                    ->orWhere('identity_number', $request->string('credential'))
+                    ->orWhere('ministry_identifier', $request->string('credential'));
             })
             ->first();
 

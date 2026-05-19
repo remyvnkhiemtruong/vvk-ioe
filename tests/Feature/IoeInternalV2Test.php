@@ -259,7 +259,7 @@ class IoeInternalV2Test extends TestCase
         ]);
 
         $ranked = app(RankingService::class)->run($exam, 'school');
-        $this->assertSame(4, $ranked);
+        $this->assertSame(4, $ranked['total_ranked']);
         $this->assertSame([1, 2, 2, 4], Ranking::where('scope', 'school')->orderBy('rank')->pluck('rank')->all());
 
         $rankedScore = $scores->first()->refresh();
@@ -297,7 +297,7 @@ class IoeInternalV2Test extends TestCase
             ]);
         }
 
-        $this->assertSame(10, app(AwardService::class)->run($exam));
+        $this->assertSame(10, app(AwardService::class)->run($exam)['total_awarded']);
         $this->assertSame([
             'encouragement' => 4,
             'first' => 1,
@@ -318,7 +318,7 @@ class IoeInternalV2Test extends TestCase
         $schoolRule = $this->awardRule($exam, 'school', 50, 4);
         $nationalRule = $this->awardRule($exam, 'national', 80, 1);
 
-        $this->assertSame(3, app(AwardService::class)->run($exam));
+        $this->assertSame(3, app(AwardService::class)->run($exam)['total_awarded']);
 
         $this->assertSame(2, Ranking::where('scope', 'school')->whereNotNull('award_code')->count());
         $this->assertSame(1, Ranking::where('scope', 'national')->whereNotNull('award_code')->count());
@@ -357,7 +357,7 @@ class IoeInternalV2Test extends TestCase
             ]);
         }
 
-        $this->assertSame(10, app(AwardService::class)->run($exam));
+        $this->assertSame(10, app(AwardService::class)->run($exam)['total_awarded']);
         $this->assertSame([
             'encouragement' => 4,
             'first' => 1,

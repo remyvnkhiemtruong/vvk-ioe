@@ -114,6 +114,11 @@ class Exam extends Model
         return $this->hasMany(StudentScore::class);
     }
 
+    public function rankings(): HasMany
+    {
+        return $this->hasMany(Ranking::class);
+    }
+
     public function awardRules(): HasMany
     {
         return $this->hasMany(AwardRule::class);

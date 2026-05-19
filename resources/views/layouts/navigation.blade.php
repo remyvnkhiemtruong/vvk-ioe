@@ -7,6 +7,7 @@
                 ->whereIn('status', \App\Services\SystemSettingService::ACTIVE_LANDING_STATUSES)
                 ->latest('id')
                 ->first();
+            $publicScoreboardEnabled = data_get($settings->get('score.options', []), 'public_scoreboard', false);
         @endphp
     @endauth
 
@@ -26,6 +27,9 @@
                 <div class="hidden space-x-6 sm:-my-px sm:ms-8 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">Tổng quan</x-nav-link>
                     @auth
+                        @if($publicScoreboardEnabled)
+                            <x-nav-link :href="route('public.leaderboard')" :active="request()->routeIs('public.leaderboard*')">Bảng xếp hạng</x-nav-link>
+                        @endif
                         @can('exams.manage')
                             <x-nav-link :href="route('admin.exams.index')" :active="request()->routeIs('admin.exams.*')">Kỳ thi</x-nav-link>
                             @if($navExam)
@@ -105,6 +109,9 @@
         <div class="space-y-1 pb-3 pt-2">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">Tổng quan</x-responsive-nav-link>
             @auth
+                @if($publicScoreboardEnabled)
+                    <x-responsive-nav-link :href="route('public.leaderboard')">Bảng xếp hạng</x-responsive-nav-link>
+                @endif
                 @can('exams.manage')
                     <x-responsive-nav-link :href="route('admin.exams.index')">Kỳ thi</x-responsive-nav-link>
                     @if($navExam)

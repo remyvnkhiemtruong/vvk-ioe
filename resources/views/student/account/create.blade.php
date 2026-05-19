@@ -10,9 +10,7 @@
         <div class="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
             <p class="font-semibold">Nhà trường đang tạm khóa chức năng tạo tài khoản học sinh.</p>
             <p>{{ $account['student_code_help'] ?? 'Vui lòng liên hệ bộ phận hỗ trợ để được cấp mã học sinh hoặc tài khoản.' }}</p>
-            @if(! empty($account['student_code_lookup_url']))
-                <a href="{{ $account['student_code_lookup_url'] }}" target="_blank" rel="noopener" class="inline-flex rounded bg-amber-700 px-4 py-2 font-semibold text-white hover:bg-amber-800">Tra cứu mã học sinh</a>
-            @endif
+            <a href="{{ route('student_code.lookup') }}" class="inline-flex rounded bg-amber-700 px-4 py-2 font-semibold text-white hover:bg-amber-800">Tra cứu mã học sinh</a>
             <div class="grid gap-3 rounded border border-amber-200 bg-white/70 p-3 sm:grid-cols-2">
                 <div>
                     <div class="font-semibold">{{ $contact['teacher_name'] ?? 'Giáo viên phụ trách' }}</div>
@@ -31,9 +29,7 @@
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p class="font-medium text-slate-700">Thông tin xác thực học sinh</p>
                 <p class="mt-1">Chọn đúng lớp và nhập mã học sinh hoặc CCCD/mã định danh Bộ GDĐT đúng với hồ sơ.</p>
-                @if(! empty($account['student_code_lookup_url']))
-                    <a href="{{ $account['student_code_lookup_url'] }}" target="_blank" rel="noopener" class="mt-2 inline-flex text-sm font-semibold text-emerald-700">Tra cứu mã học sinh</a>
-                @endif
+                <a href="{{ route('student_code.lookup') }}" class="mt-2 inline-flex text-sm font-semibold text-emerald-700">Không nhớ mã học sinh, tra cứu tại đây</a>
             </div>
 
             <div>
@@ -42,7 +38,7 @@
                     class="mt-1 block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
                     <option value="">— Chọn lớp —</option>
                     @foreach($classes as $class)
-                        <option value="{{ $class }}" @selected(old('class_name') === $class)>{{ $class }}</option>
+                        <option value="{{ $class }}" @selected(old('class_name', request('class_name')) === $class)>{{ $class }}</option>
                     @endforeach
                 </select>
                 <x-input-error :messages="$errors->get('class_name')" class="mt-2" />
@@ -51,7 +47,7 @@
             <div>
                 <x-input-label for="credential" value="Mã học sinh hoặc CCCD / Mã định danh Bộ GDĐT *" />
                 <x-text-input id="credential" name="credential" class="mt-1 block w-full"
-                    :value="old('credential')" required placeholder="Nhập mã học sinh hoặc số CCCD/mã định danh" />
+                    :value="old('credential', request('credential'))" required placeholder="Nhập mã học sinh hoặc số CCCD/mã định danh" />
                 <p class="mt-1 text-xs text-slate-500">{{ $account['student_code_help'] ?? 'Nhập mã học sinh hoặc số định danh Bộ GDĐT.' }}</p>
                 <x-input-error :messages="$errors->get('credential')" class="mt-2" />
             </div>

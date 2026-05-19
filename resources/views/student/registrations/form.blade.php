@@ -15,7 +15,6 @@
             @if($registration) @method('PUT') @endif
             <input type="hidden" name="exam_id" value="{{ $exam->id }}">
 
-            @if($exam->requiresSessionChoice())
             <section class="rounded-lg border border-slate-200 bg-white p-6">
                 <h2 class="text-lg font-semibold">Thông tin từ hồ sơ học sinh</h2>
                 <p class="mt-1 text-sm text-slate-600">Họ tên, ngày sinh, giới tính, lớp, khối và CCCD/mã định danh không tự sửa tại form này.</p>
@@ -81,6 +80,7 @@
                 </div>
             </section>
 
+            @if($exam->requiresSessionChoice())
             <section class="rounded-lg border border-slate-200 bg-white p-6">
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -116,7 +116,7 @@
                 <input type="hidden" name="exam_session_id" value="{{ old('exam_session_id', $registration?->exam_session_id) }}">
                 <section class="rounded-lg border border-slate-200 bg-white p-6">
                     <h2 class="text-lg font-semibold">Ca thi và phòng thi</h2>
-                    <p class="mt-1 text-sm text-slate-600">Kỳ thi này do ban tổ chức phân ca/phòng sau khi duyệt danh sách. Học sinh không cần chọn ca khi gửi đăng ký nội bộ.</p>
+                    <p class="mt-1 text-sm text-slate-600">Ban tổ chức sẽ phân ca, phòng thi, số máy sau khi duyệt danh sách. Học sinh không cần chọn ca thi ở bước đăng ký.</p>
                     <div class="mt-4 rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                         Sau khi được duyệt và phân phòng, hệ thống sẽ hiển thị ca thi, phòng thi, số máy và phiếu dự thi trong trang học sinh.
                     </div>

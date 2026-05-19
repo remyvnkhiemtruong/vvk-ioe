@@ -7,6 +7,7 @@ use App\Models\Grade;
 use App\Models\ImportBatch;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Support\StudentNameNormalizer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,12 @@ class StudentImportService
         'gender' => ['Giới tính', 'Gioi tinh', 'Gender'],
         'ethnicity' => ['Dân tộc', 'Dan toc'],
         'source_status' => ['Trạng thái', 'Trang thai', 'Status'],
+        'email' => ['Email', 'Địa chỉ email', 'Dia chi email'],
+        'phone' => ['Số điện thoại', 'So dien thoai', 'Điện thoại', 'Dien thoai', 'Phone'],
+        'address' => ['Địa chỉ', 'Dia chi', 'Nơi ở', 'Noi o', 'Address'],
+        'ioe_account_id' => ['ID tài khoản IOE', 'ID (Mã tài khoản)', 'Tai khoan IOE', 'Tài khoản IOE', 'ID IOE'],
+        'current_self_training_round' => ['Vòng tự luyện', 'Vong tu luyen', 'Vòng tự luyện cao nhất', 'Self training round'],
+        'is_verified' => ['Đã xác thực tài khoản IOE', 'Da xac thuc tai khoan IOE', 'Xác thực IOE', 'IOE verified'],
         'health_check' => ['Kiểm tra sức khỏe dinh dưỡng', 'Kiem tra suc khoe dinh duong'],
         'height_1' => ['Chiều cao kì 1', 'Chiều cao kỳ 1', 'Chieu cao ki 1'],
         'height_2' => ['Chiều cao kì 2', 'Chiều cao kỳ 2', 'Chieu cao ki 2'],
@@ -68,6 +75,8 @@ class StudentImportService
             $payload['date_of_birth'] = SpreadsheetTable::parseDate($payload['date_of_birth'] ?? null);
             $payload['grade'] = $this->grade($payload);
             $payload['status'] = SpreadsheetTable::activeStatusFromText($payload['source_status'] ?? null);
+            $payload['is_verified'] = SpreadsheetTable::booleanFromText($payload['is_verified'] ?? null) ?? false;
+            $payload['current_self_training_round'] = $this->integerValue($payload['current_self_training_round'] ?? null);
             $payload['health_metadata'] = $this->healthMetadata($payload);
             unset($payload['source_status']);
 
@@ -121,44 +130,62 @@ class StudentImportService
         ];
     }
 
-    public function commit(ImportBatch $batch): int
+    public function commit(ImportBatch $batch, string $schoolYear = '2025-2026'): int
+    {
+        return $this->commitWithReport($batch, $schoolYear)['committed_rows'];
+    }
+
+    public function commitWithReport(ImportBatch $batch, string $schoolYear = '2025-2026'): array
     {
         $rows = collect($batch->preview_rows ?? [])
             ->where('valid', true)
             ->pluck('data')
             ->values();
 
-        return DB::transaction(function () use ($batch, $rows) {
+        return DB::transaction(function () use ($batch, $rows, $schoolYear) {
             $count = 0;
+            $created = 0;
+            $updated = 0;
 
             foreach ($rows as $row) {
-                Student::updateOrCreate(
-                    $this->lookupKey($row),
-                    [
-                        'full_name' => Arr::get($row, 'full_name'),
-                        'grade' => (int) Arr::get($row, 'grade'),
-                        'class_name' => Arr::get($row, 'class_name'),
-                        'student_code' => Arr::get($row, 'student_code'),
-                        'identity_number' => Arr::get($row, 'identity_number'),
-                        'ministry_identifier' => Arr::get($row, 'identity_number'),
-                        'date_of_birth' => Arr::get($row, 'date_of_birth') ?: null,
-                        'gender' => Arr::get($row, 'gender'),
-                        'ethnicity' => Arr::get($row, 'ethnicity'),
-                        'academic_year_id' => $this->academicYearId('2025-2026'),
-                        'grade_id' => $this->gradeId((int) Arr::get($row, 'grade')),
-                        'school_class_id' => $this->schoolClassId((string) Arr::get($row, 'class_name')),
-                        'health_metadata' => Arr::get($row, 'health_metadata'),
-                        'import_batch_id' => $batch->id,
-                        'status' => Arr::get($row, 'status', 'active'),
-                    ]
-                );
+                $student = Student::firstOrNew($this->lookupKey($row));
+                $student->fill($this->studentAttributes($row, $batch, $schoolYear));
+                $student->save();
+
+                $student->wasRecentlyCreated ? $created++ : $updated++;
                 $count++;
             }
 
             $batch->update(['status' => 'committed']);
 
-            return $count;
+            return [
+                'committed_rows' => $count,
+                'created' => $created,
+                'updated' => $updated,
+                'school_year' => $schoolYear,
+            ];
         });
+    }
+
+    public function importRows(array $rows, ?ImportBatch $batch = null, string $schoolYear = '2025-2026'): array
+    {
+        $created = 0;
+        $updated = 0;
+
+        foreach ($rows as $row) {
+            $student = Student::firstOrNew($this->lookupKey($row));
+            $student->fill($this->studentAttributes($row, $batch, $schoolYear));
+            $student->save();
+
+            $student->wasRecentlyCreated ? $created++ : $updated++;
+        }
+
+        return [
+            'committed_rows' => count($rows),
+            'created' => $created,
+            'updated' => $updated,
+            'school_year' => $schoolYear,
+        ];
     }
 
     private function createBatch(array $analysis): ImportBatch
@@ -186,6 +213,12 @@ class StudentImportService
             'date_of_birth' => ['nullable', 'date'],
             'gender' => ['nullable', 'string', 'max:20'],
             'ethnicity' => ['nullable', 'string', 'max:100'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'ioe_account_id' => ['nullable', 'string', 'max:100'],
+            'current_self_training_round' => ['nullable', 'integer', 'min:0'],
+            'is_verified' => ['nullable', 'boolean'],
             'status' => ['required', 'string', 'in:active,inactive'],
         ]);
 
@@ -223,12 +256,56 @@ class StudentImportService
         return ['identity_number' => Arr::get($row, 'identity_number')];
     }
 
+    private function studentAttributes(array $row, ?ImportBatch $batch, string $schoolYear): array
+    {
+        $grade = (int) Arr::get($row, 'grade');
+        $identityNumber = Arr::get($row, 'identity_number');
+
+        return [
+            'full_name' => Arr::get($row, 'full_name'),
+            'normalized_name' => StudentNameNormalizer::normalize(Arr::get($row, 'full_name')),
+            'grade' => $grade,
+            'class_name' => Arr::get($row, 'class_name'),
+            'student_code' => Arr::get($row, 'student_code'),
+            'identity_number' => $identityNumber,
+            'ministry_identifier' => $identityNumber,
+            'date_of_birth' => Arr::get($row, 'date_of_birth') ?: null,
+            'gender' => Arr::get($row, 'gender'),
+            'ethnicity' => Arr::get($row, 'ethnicity'),
+            'email' => Arr::get($row, 'email'),
+            'phone' => Arr::get($row, 'phone'),
+            'address' => Arr::get($row, 'address'),
+            'ioe_account_id' => Arr::get($row, 'ioe_account_id'),
+            'is_verified' => (bool) Arr::get($row, 'is_verified', false),
+            'current_self_training_round' => (int) Arr::get($row, 'current_self_training_round', 0),
+            'academic_year_id' => $this->academicYearId($schoolYear),
+            'grade_id' => $this->gradeId($grade),
+            'school_class_id' => $this->schoolClassId((string) Arr::get($row, 'class_name')),
+            'health_metadata' => Arr::get($row, 'health_metadata'),
+            'import_batch_id' => $batch?->id,
+            'status' => Arr::get($row, 'status', 'active'),
+        ];
+    }
+
     private function healthMetadata(array $payload): array
     {
         return collect($payload)
             ->only(['health_check', 'height_1', 'height_2', 'weight_1', 'weight_2', 'eye_disease', 'swim_1', 'swim_2'])
             ->filter(fn ($value) => filled($value))
             ->all();
+    }
+
+    private function integerValue(mixed $value): int
+    {
+        $value = SpreadsheetTable::cleanValue($value);
+
+        if ($value === null) {
+            return 0;
+        }
+
+        preg_match('/\d+/', $value, $matches);
+
+        return isset($matches[0]) ? (int) $matches[0] : 0;
     }
 
     private function academicYearId(string $code): ?int
