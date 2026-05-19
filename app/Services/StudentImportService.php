@@ -130,12 +130,12 @@ class StudentImportService
         ];
     }
 
-    public function commit(ImportBatch $batch, string $schoolYear = '2025-2026'): int
+    public function commit(ImportBatch $batch, string $schoolYear = '2026-2027'): int
     {
         return $this->commitWithReport($batch, $schoolYear)['committed_rows'];
     }
 
-    public function commitWithReport(ImportBatch $batch, string $schoolYear = '2025-2026'): array
+    public function commitWithReport(ImportBatch $batch, string $schoolYear = '2026-2027'): array
     {
         $rows = collect($batch->preview_rows ?? [])
             ->where('valid', true)
@@ -167,7 +167,7 @@ class StudentImportService
         });
     }
 
-    public function importRows(array $rows, ?ImportBatch $batch = null, string $schoolYear = '2025-2026'): array
+    public function importRows(array $rows, ?ImportBatch $batch = null, string $schoolYear = '2026-2027'): array
     {
         $created = 0;
         $updated = 0;
@@ -280,7 +280,7 @@ class StudentImportService
             'current_self_training_round' => (int) Arr::get($row, 'current_self_training_round', 0),
             'academic_year_id' => $this->academicYearId($schoolYear),
             'grade_id' => $this->gradeId($grade),
-            'school_class_id' => $this->schoolClassId((string) Arr::get($row, 'class_name')),
+            'school_class_id' => $this->schoolClassId((string) Arr::get($row, 'class_name'), $schoolYear, $grade),
             'health_metadata' => Arr::get($row, 'health_metadata'),
             'import_batch_id' => $batch?->id,
             'status' => Arr::get($row, 'status', 'active'),
@@ -310,9 +310,21 @@ class StudentImportService
 
     private function academicYearId(string $code): ?int
     {
+        $startYear = substr($code, 0, 4);
+        $endYear = substr($code, -4);
+
         return AcademicYear::firstOrCreate(
             ['code' => $code],
-            ['start_date' => '2025-09-01', 'end_date' => '2026-05-31', 'is_current' => true],
+            [
+                'name' => 'Năm học '.$startYear.' - '.$endYear,
+                'start_date' => $startYear.'-09-01',
+                'end_date' => $endYear.'-05-31',
+                'starts_at' => $startYear.'-09-01',
+                'ends_at' => $endYear.'-05-31',
+                'status' => $code === '2026-2027' ? 'current' : 'archived',
+                'is_current' => $code === '2026-2027',
+                'is_active' => $code === '2026-2027',
+            ],
         )->id;
     }
 
@@ -328,12 +340,22 @@ class StudentImportService
         )->id;
     }
 
-    private function schoolClassId(string $className): ?int
+    private function schoolClassId(string $className, string $schoolYear, int $grade): ?int
     {
         if (blank($className)) {
             return null;
         }
 
-        return SchoolClass::where('class_name', $className)->latest()->value('id');
+        $academicYearId = $this->academicYearId($schoolYear);
+
+        return SchoolClass::firstOrCreate(
+            ['school_year' => $schoolYear, 'class_name' => $className],
+            [
+                'grade' => $grade ?: (SpreadsheetTable::gradeFromText($className) ?: 10),
+                'grade_id' => $grade ? $this->gradeId($grade) : null,
+                'academic_year_id' => $academicYearId,
+                'status' => 'active',
+            ]
+        )->id;
     }
 }

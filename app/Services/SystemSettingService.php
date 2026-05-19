@@ -7,6 +7,7 @@ use App\Models\SystemSetting;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class SystemSettingService
@@ -84,8 +85,9 @@ class SystemSettingService
     {
         return $this->get('account.options', [
             'student_registration_enabled' => true,
+            'allow_ioe_id_as_credential' => false,
             'student_code_lookup_url' => '',
-            'student_code_help' => 'Nếu chưa biết mã học sinh, học sinh có thể liên hệ Trương Minh Khiêm để được hỗ trợ hoặc dùng link tra cứu khi nhà trường công bố.',
+            'student_code_help' => 'Nếu chưa biết mã học sinh, học sinh có thể dùng trang tra cứu hoặc liên hệ giáo viên phụ trách.',
         ]);
     }
 
@@ -121,6 +123,25 @@ class SystemSettingService
         ]);
     }
 
+    public function storeLogoFromPath(string $sourcePath): void
+    {
+        if (! is_file($sourcePath)) {
+            return;
+        }
+
+        $extension = strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION)) ?: 'png';
+        $path = 'school/logo-vvk.'.$extension;
+
+        Storage::disk('public')->put($path, File::get($sourcePath));
+
+        $this->set('school.logo_path', [
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => basename($sourcePath),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
     public function saveMailSettings(array $mail): void
     {
         $current = $this->get('mail.smtp', []);
@@ -135,7 +156,7 @@ class SystemSettingService
         $this->set('mail.smtp', $mail);
     }
 
-    public function currentSchoolExam(): Exam
+    public function existingCurrentSchoolExam(): ?Exam
     {
         return Exam::where('level', 'school')
             ->where('school_year', $this->schoolYear())
@@ -144,7 +165,12 @@ class SystemSettingService
             ?: Exam::where('level', 'school')
                 ->whereIn('status', self::ACTIVE_LANDING_STATUSES)
                 ->latest()
-                ->first()
+                ->first();
+    }
+
+    public function currentSchoolExam(): Exam
+    {
+        return $this->existingCurrentSchoolExam()
             ?: new Exam([
                 'name' => 'IOE nội bộ năm học '.$this->schoolYear(),
                 'school_year' => $this->schoolYear(),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Models\AcademicYear;
 use App\Models\AcademicYearStudent;
 use App\Models\AwardRecord;
 use App\Models\ExamCode;
@@ -32,7 +33,9 @@ class DashboardController extends Controller
 {
     public function __invoke(ExamSessionAvailabilityService $availability): View
     {
-        $exam = Exam::where('school_year', app(SystemSettingService::class)->schoolYear())
+        $schoolYear = app(SystemSettingService::class)->schoolYear();
+        $academicYear = AcademicYear::where('code', $schoolYear)->first();
+        $exam = Exam::where('school_year', $schoolYear)
             ->whereIn('status', SystemSettingService::ACTIVE_LANDING_STATUSES)
             ->latest('id')
             ->first();
@@ -57,6 +60,12 @@ class DashboardController extends Controller
             'exam' => $exam,
             'stats' => [
                 'students' => Student::count(),
+                'students_current_year' => Student::when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))->count(),
+                'classes_current_year' => SchoolClass::when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))->count(),
+                'grades_current_year' => Student::when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))->distinct('grade')->count('grade'),
+                'student_accounts_created' => Student::when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))->whereHas('user')->count(),
+                'student_accounts_missing' => Student::when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))->whereDoesntHave('user')->count(),
+                'exams_preparing_current_year' => Exam::where('school_year', $schoolYear)->whereIn('status', ['draft', 'preparing'])->count(),
                 'staff' => StaffProfile::count(),
                 'classes' => SchoolClass::count(),
                 'registrations' => (clone $registrations)->count(),

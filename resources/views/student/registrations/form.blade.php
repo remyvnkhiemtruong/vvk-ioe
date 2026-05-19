@@ -38,8 +38,9 @@
                         <x-input-error :messages="$errors->get('gender')" class="mt-2" />
                     </div>
                     <div>
-                        <x-input-label for="identity_number" value="CCCD/Mã định danh" />
-                        <x-text-input id="identity_number" name="identity_number" class="mt-1 block w-full bg-slate-50" :value="old('identity_number', $student?->identity_number)" readonly required />
+                        <x-input-label for="identity_number_masked" value="CCCD/Mã định danh" />
+                        <input type="hidden" name="identity_number" value="{{ old('identity_number', $student?->identity_number) }}">
+                        <x-text-input id="identity_number_masked" class="mt-1 block w-full bg-slate-50" :value="$student?->maskedIdentity() ?: 'Chưa cập nhật'" readonly required />
                         <x-input-error :messages="$errors->get('identity_number')" class="mt-2" />
                     </div>
                     <div>

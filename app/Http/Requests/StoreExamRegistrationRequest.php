@@ -6,7 +6,7 @@ use App\Models\Exam;
 use App\Models\ExamRegistration;
 use App\Models\ExamSession;
 use App\Services\ExamSessionAvailabilityService;
-use App\Support\SchoolClassOptions;
+use App\Services\StudentClassOptionService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -52,7 +52,7 @@ class StoreExamRegistrationRequest extends FormRequest
                     ->ignore($registrationId),
             ],
             'class_name' => ['required', 'string', 'max:50', function (string $attribute, mixed $value, \Closure $fail): void {
-                if (! SchoolClassOptions::contains((string) $value)) {
+                if (! app(StudentClassOptionService::class)->contains((string) $value)) {
                     $fail('Lớp chưa có trong danh sách lớp/học sinh đã import.');
                 }
             }],

@@ -26,6 +26,10 @@
         @endif
 
         <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <x-stat-card label="Học sinh 2026-2027" :value="$stats['students_current_year']" tone="blue" :href="route('admin.students.index')" />
+            <x-stat-card label="Lớp 2026-2027" :value="$stats['classes_current_year']" tone="emerald" :href="route('admin.students.index')" />
+            <x-stat-card label="Đã có tài khoản" :value="$stats['student_accounts_created']" tone="emerald" :href="route('admin.students.index')" />
+            <x-stat-card label="Chưa có tài khoản" :value="$stats['student_accounts_missing']" tone="amber" :href="route('admin.students.index')" />
             <x-stat-card label="Học sinh nội bộ" :value="$stats['internal_students']" tone="blue" :href="$examStudentsUrl" />
             <x-stat-card label="Đủ điều kiện" :value="$stats['internal_eligible']" tone="emerald" :href="$examStudentsUrl" />
             <x-stat-card label="Thiếu điều kiện" :value="$stats['internal_ineligible']" tone="amber" :href="$examStudentsUrl" />
@@ -51,6 +55,7 @@
                 <a href="{{ route('admin.exams.index') }}" class="rounded bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">Quản lý kỳ thi</a>
             </div>
             <div class="mt-4 grid gap-3 md:grid-cols-3">
+                <a href="{{ route('admin.academic-years.prepare') }}" class="rounded border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800 hover:bg-blue-100">Chuẩn bị năm học mới</a>
                 <a href="{{ $examStudentsUrl }}" class="rounded border border-slate-200 p-3 text-sm font-semibold hover:bg-slate-50">Danh sách học sinh nội bộ</a>
                 <a href="{{ route('admin.sessions.index') }}" class="rounded border border-slate-200 p-3 text-sm font-semibold hover:bg-slate-50">Lịch thi và khung giờ</a>
                 <a href="{{ $examCodesUrl }}" class="rounded border border-slate-200 p-3 text-sm font-semibold hover:bg-slate-50">Mã ca thi từ ioe.vn</a>

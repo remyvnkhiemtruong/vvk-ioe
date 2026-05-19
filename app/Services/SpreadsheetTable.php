@@ -45,8 +45,13 @@ class SpreadsheetTable
     public static function cleanValue(mixed $value): ?string
     {
         $value = trim((string) $value);
+        $normalized = self::normalizeHeader($value);
 
-        return in_array($value, ['', '?', '-', '—', '–'], true) ? null : $value;
+        if (in_array($value, ['', '?', '-', '—', '–', 'â€”', 'â€“'], true)) {
+            return null;
+        }
+
+        return in_array($normalized, ['null', 'n a', 'na', 'none'], true) ? null : $value;
     }
 
     public static function mapRow(array $headers, array $row, array $mapping, array $fields): array

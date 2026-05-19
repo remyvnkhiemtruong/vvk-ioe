@@ -2,50 +2,18 @@
 
 namespace App\Support;
 
-use App\Models\SchoolClass;
-use App\Models\Student;
+use App\Services\StudentClassOptionService;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 
 class SchoolClassOptions
 {
-    public static function names(): Collection
+    public static function names(?string $yearCode = null): Collection
     {
-        if (Schema::hasTable('school_classes') && SchoolClass::query()->active()->exists()) {
-            return SchoolClass::query()
-                ->active()
-                ->orderBy('grade')
-                ->orderBy('class_name')
-                ->pluck('class_name');
-        }
-
-        if (Schema::hasTable('students')) {
-            return Student::query()
-                ->where('status', 'active')
-                ->distinct()
-                ->orderBy('class_name')
-                ->pluck('class_name');
-        }
-
-        return collect();
+        return app(StudentClassOptionService::class)->names($yearCode);
     }
 
-    public static function contains(string $className): bool
+    public static function contains(string $className, ?string $yearCode = null): bool
     {
-        if (Schema::hasTable('school_classes') && SchoolClass::query()->active()->exists()) {
-            return SchoolClass::query()
-                ->active()
-                ->where('class_name', $className)
-                ->exists();
-        }
-
-        if (Schema::hasTable('students')) {
-            return Student::query()
-                ->where('status', 'active')
-                ->where('class_name', $className)
-                ->exists();
-        }
-
-        return false;
+        return app(StudentClassOptionService::class)->contains($className, $yearCode);
     }
 }

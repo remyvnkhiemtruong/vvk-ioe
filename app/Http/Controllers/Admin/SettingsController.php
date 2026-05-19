@@ -44,6 +44,7 @@ class SettingsController extends Controller
             'contact.developer_name' => ['nullable', 'string', 'max:255'],
             'contact.note' => ['nullable', 'string', 'max:1000'],
             'account.student_registration_enabled' => ['nullable', 'boolean'],
+            'account.allow_ioe_id_as_credential' => ['nullable', 'boolean'],
             'account.student_code_lookup_url' => ['nullable', 'url', 'max:500'],
             'account.student_code_help' => ['nullable', 'string', 'max:1000'],
             'exam.name' => ['required', 'string', 'max:255'],
@@ -72,6 +73,7 @@ class SettingsController extends Controller
         $settings->set('site.contact', $data['contact'] ?? []);
         $settings->set('account.options', [
             'student_registration_enabled' => $request->boolean('account.student_registration_enabled'),
+            'allow_ioe_id_as_credential' => $request->boolean('account.allow_ioe_id_as_credential'),
             'student_code_lookup_url' => $request->input('account.student_code_lookup_url'),
             'student_code_help' => $request->input('account.student_code_help'),
         ]);
@@ -101,10 +103,9 @@ class SettingsController extends Controller
             'show_countdown' => $request->boolean('options.show_countdown'),
         ];
 
-        $exam = $settings->currentSchoolExam();
-        $exam->exists
-            ? $exam->update($examPayload)
-            : Exam::create($examPayload);
+        if ($exam = $settings->existingCurrentSchoolExam()) {
+            $exam->update($examPayload);
+        }
 
         $settings->set('score.options', [
             'publish_scores' => $request->boolean('score.publish_scores'),

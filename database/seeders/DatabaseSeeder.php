@@ -2,11 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\Exam;
-use App\Models\ExamFormField;
+use App\Models\AcademicYear;
 use App\Models\ExamRoom;
 use App\Models\RoomComputer;
+use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\SystemSettingService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -17,9 +18,6 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
         $permissions = [
@@ -27,7 +25,12 @@ class DatabaseSeeder extends Seeder
             'students.view',
             'students.view_sensitive',
             'students.import',
+            'students.import_roster',
             'students.export',
+            'students.lookup',
+            'academic_years.view',
+            'academic_years.prepare',
+            'academic_years.reset',
             'exams.manage',
             'form.manage',
             'registrations.view',
@@ -53,6 +56,10 @@ class DatabaseSeeder extends Seeder
             'results.enter',
             'results.review',
             'results.lock',
+            'rankings.manage',
+            'awards.manage',
+            'leaderboard.public.manage',
+            'leaderboard.public.view',
             'minutes.generate',
             'minutes.upload',
             'minutes.review',
@@ -123,60 +130,54 @@ class DatabaseSeeder extends Seeder
         ]);
         $adminUser->assignRole('admin');
 
-        $exam = Exam::firstOrCreate([
-            'name' => 'IOE cấp trường năm học 2025-2026',
-            'school_year' => '2025-2026',
-        ], [
-            'level' => 'school',
-            'registration_mode' => 'admin_assign_session',
-            'template_type' => 'truong',
-            'external_platform_name' => 'IOE',
-            'organizer_scope' => 'school',
-            'target_grades' => [10, 11, 12],
-            'allow_student_edit' => true,
-            'allow_student_session_change' => true,
-            'require_session_choice' => false,
-            'allow_personal_computer' => true,
-            'auto_lock_full_sessions' => true,
-            'show_public_stats' => true,
-            'require_approval' => true,
-            'publish_scores' => false,
-            'show_countdown' => true,
-            'countdown_mode' => 'auto',
-            'status' => 'draft',
-            'description' => 'Đăng ký dự thi Olympic Tiếng Anh trên Internet cấp trường.',
+        AcademicYear::query()->update(['is_current' => false, 'is_active' => false]);
+        AcademicYear::updateOrCreate(
+            ['code' => '2026-2027'],
+            [
+                'name' => 'Năm học 2026 - 2027',
+                'start_date' => '2026-09-01',
+                'end_date' => '2027-05-31',
+                'starts_at' => '2026-09-01',
+                'ends_at' => '2027-05-31',
+                'status' => 'current',
+                'is_current' => true,
+                'is_active' => true,
+            ]
+        );
+
+        SystemSetting::updateOrCreate(['key' => 'school.info'], [
+            'value' => [
+                'name' => 'Trường THPT Võ Văn Kiệt',
+                'address' => 'Tỉnh Cà Mau',
+                'website' => '',
+            ],
+        ]);
+        SystemSetting::updateOrCreate(['key' => 'site.info'], [
+            'value' => [
+                'site_name' => 'IOE nội bộ',
+                'contest_name' => 'IOE nội bộ Trường THPT Võ Văn Kiệt',
+                'school_year' => '2026-2027',
+                'home_description' => 'Nhà trường đang chuẩn bị dữ liệu năm học mới. Thông tin cuộc thi sẽ được cập nhật sau.',
+            ],
+        ]);
+        SystemSetting::updateOrCreate(['key' => 'account.options'], [
+            'value' => [
+                'student_registration_enabled' => true,
+                'allow_ioe_id_as_credential' => false,
+                'student_code_lookup_url' => '/tra-cuu-ma-hoc-sinh',
+                'student_code_help' => 'Nếu chưa biết mã học sinh, hãy dùng trang tra cứu hoặc liên hệ giáo viên phụ trách.',
+            ],
+        ]);
+        SystemSetting::updateOrCreate(['key' => 'score.options'], [
+            'value' => [
+                'publish_scores' => false,
+                'show_ranking' => false,
+                'ranking_scope' => 'school',
+                'public_scoreboard' => false,
+            ],
         ]);
 
-        $defaultFields = [
-            ['full_name', 'Họ và tên', 'text', true, true],
-            ['ioe_id', 'ID tài khoản IOE', 'text', true, true],
-            ['date_of_birth', 'Ngày sinh', 'date', true, true],
-            ['gender', 'Giới tính', 'select', true, true],
-            ['identity_number', 'Số CCCD/mã định danh', 'text', true, true],
-            ['class_name', 'Lớp', 'text', true, true],
-            ['address', 'Địa chỉ', 'textarea', true, true],
-            ['phone', 'Số điện thoại học sinh', 'text', true, true],
-            ['email', 'Email', 'email', true, true],
-            ['uses_personal_computer', 'Sử dụng máy tính cá nhân?', 'boolean', true, true],
-            ['note', 'Ghi chú', 'textarea', true, false],
-        ];
-
-        array_splice($defaultFields, 7, 0, [
-            ['exam_session_id', 'Ca thi mong muon', 'radio', true, false],
-        ]);
-
-        foreach ($defaultFields as $index => [$key, $label, $type, $enabled, $required]) {
-            ExamFormField::updateOrCreate([
-                'exam_id' => $exam->id,
-                'field_key' => $key,
-            ], [
-                'label' => $label,
-                'type' => $type,
-                'is_enabled' => $enabled,
-                'is_required' => $required,
-                'sort_order' => $index + 1,
-            ]);
-        }
+        app(SystemSettingService::class)->storeLogoFromPath(base_path('file/LogoVVK (1).png'));
 
         $room = ExamRoom::updateOrCreate([
             'room_code' => 'TINHOC1',

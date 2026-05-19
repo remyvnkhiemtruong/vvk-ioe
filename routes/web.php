@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\AcademicYearPreparationController;
 use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\CheckinController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -78,6 +79,11 @@ Route::middleware(['auth', 'role:student'])->prefix('student')->name('student.')
 
 Route::middleware(['auth', 'role:admin|super_admin|exam_admin|teacher'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->middleware('permission:dashboard.view')->name('dashboard');
+
+    Route::get('/academic-years/prepare', [AcademicYearPreparationController::class, 'create'])->middleware('permission:academic_years.prepare')->name('academic-years.prepare');
+    Route::post('/academic-years/prepare/preview', [AcademicYearPreparationController::class, 'preview'])->middleware('permission:academic_years.prepare')->name('academic-years.prepare.preview');
+    Route::post('/academic-years/prepare/run', [AcademicYearPreparationController::class, 'run'])->middleware('permission:academic_years.prepare')->name('academic-years.prepare.run');
+    Route::get('/academic-years/prepare/report/{batch}', [AcademicYearPreparationController::class, 'report'])->middleware('permission:academic_years.prepare')->name('academic-years.prepare.report');
 
     Route::get('/settings', [SettingsController::class, 'index'])->middleware('permission:settings.manage')->name('settings.index');
     Route::put('/settings', [SettingsController::class, 'update'])->middleware('permission:settings.manage')->name('settings.update');

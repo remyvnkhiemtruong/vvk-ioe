@@ -4,25 +4,25 @@ namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreStudentAccountRequest;
+use App\Models\AcademicYear;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\StudentClassOptionService;
 use App\Services\SystemSettingService;
-use App\Support\SchoolClassOptions;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AccountController extends Controller
 {
-    public function create(SystemSettingService $settings): View
+    public function create(SystemSettingService $settings, StudentClassOptionService $classes): View
     {
         return view('student.account.create', [
-            'classes' => SchoolClassOptions::names(),
+            'classes' => $classes->names(),
             'settings' => $settings,
             'account' => $settings->accountOptions(),
             'contact' => $settings->contact(),
@@ -38,27 +38,26 @@ class AccountController extends Controller
             ]);
         }
 
-        $student = Student::query()
-            ->where('class_name', $request->string('class_name'))
-            ->where(function ($query) use ($request) {
-                $query->where('student_code', $request->string('credential'))
-                    ->orWhere('identity_number', $request->string('credential'))
-                    ->orWhere('ministry_identifier', $request->string('credential'));
-            })
-            ->first();
+        $student = $this->findCurrentStudent(
+            $request->string('class_name')->toString(),
+            $request->string('credential')->toString(),
+            (bool) data_get($settings->accountOptions(), 'allow_ioe_id_as_credential', false)
+        );
 
         if (! $student) {
             throw ValidationException::withMessages([
-                'credential' => 'Không tìm thấy học sinh khớp với lớp và mã đã nhập. Vui lòng liên hệ giáo viên phụ trách.',
+                'credential' => 'Không tìm thấy học sinh active thuộc năm học hiện tại khớp với lớp và mã đã nhập. Vui lòng tra cứu mã hoặc liên hệ giáo viên phụ trách.',
             ]);
         }
 
-        // Xử lý username ưu tiên: user chọn → student_code → hs{id tạm}
-        $chosenUsername = trim((string) $request->input('username'));
-        $fallbackUsername = $student->student_code
-            ? $student->student_code
-            : 'hs'.($student->id ?? time());
+        if ($student->status !== 'active') {
+            throw ValidationException::withMessages([
+                'credential' => 'Hồ sơ học sinh chưa active nên chưa thể tạo tài khoản.',
+            ]);
+        }
 
+        $chosenUsername = trim((string) $request->input('username'));
+        $fallbackUsername = $student->student_code ?: ($student->ioe_account_id ?: 'hs'.$student->id);
         $username = $chosenUsername !== '' ? $chosenUsername : $fallbackUsername;
 
         try {
@@ -72,24 +71,22 @@ class AccountController extends Controller
                 }
 
                 $user = User::create([
-                    'name'     => $student->full_name,
-                    'email'    => $request->input('email') ?: $student->email,
+                    'name' => $student->full_name,
+                    'email' => $request->input('email') ?: $student->email,
                     'username' => $username,
-                    'phone'    => $request->input('phone') ?: $student->phone,
+                    'phone' => $request->input('phone') ?: $student->phone,
                     'password' => Hash::make($request->input('password')),
-                    'role'     => 'student',
-                    'status'   => 'active',
+                    'role' => 'student',
+                    'status' => 'active',
                     'student_id' => $student->id,
                 ]);
                 $user->assignRole('student');
 
-                // Xử lý ảnh đại diện
                 if ($request->hasFile('avatar')) {
                     $path = $request->file('avatar')->store('avatars', 'public');
                     $user->update(['avatar_path' => $path]);
                 }
 
-                // Đồng bộ phone/email từ user nhập vào student record
                 $updates = [];
                 if ($request->filled('phone') && blank($student->phone)) {
                     $updates['phone'] = $request->input('phone');
@@ -97,7 +94,7 @@ class AccountController extends Controller
                 if ($request->filled('email') && blank($student->email)) {
                     $updates['email'] = $request->input('email');
                 }
-                if ($updates) {
+                if ($updates !== []) {
                     $student->update($updates);
                 }
 
@@ -112,5 +109,26 @@ class AccountController extends Controller
         Auth::login($user);
 
         return redirect()->route('student.dashboard')->with('status', 'Tạo tài khoản học sinh thành công.');
+    }
+
+    private function findCurrentStudent(string $className, string $credential, bool $allowIoeId): ?Student
+    {
+        $year = AcademicYear::where('is_current', true)->first()
+            ?: AcademicYear::where('is_active', true)->latest('id')->first();
+
+        return Student::query()
+            ->when($year, fn ($query) => $query->where('academic_year_id', $year->id))
+            ->where('status', 'active')
+            ->where('class_name', trim($className))
+            ->where(function ($query) use ($credential, $allowIoeId) {
+                $query->where('student_code', $credential)
+                    ->orWhere('identity_number', $credential)
+                    ->orWhere('ministry_identifier', $credential);
+
+                if ($allowIoeId) {
+                    $query->orWhere('ioe_account_id', $credential);
+                }
+            })
+            ->first();
     }
 }

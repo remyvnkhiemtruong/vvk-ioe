@@ -56,6 +56,9 @@
                         @can('students.view')
                             <x-nav-link :href="route('admin.students.index')" :active="request()->routeIs('admin.students.*')">Hồ sơ học sinh</x-nav-link>
                         @endcan
+                        @can('academic_years.prepare')
+                            <x-nav-link :href="route('admin.academic-years.prepare')" :active="request()->routeIs('admin.academic-years.*')">Năm học mới</x-nav-link>
+                        @endcan
                         @can('registrations.view')
                             <x-nav-link :href="route('admin.registrations.index')" :active="request()->routeIs('admin.registrations.*')">Đăng ký legacy</x-nav-link>
                         @endcan
@@ -124,6 +127,7 @@
                 @can('sessions.manage')<x-responsive-nav-link :href="route('admin.sessions.index')">Lịch/khung giờ</x-responsive-nav-link>@endcan
                 @can('scores.enter')<x-responsive-nav-link :href="$scoreHref ?? route('admin.scores.index')">Nhập điểm</x-responsive-nav-link>@endcan
                 @can('students.view')<x-responsive-nav-link :href="route('admin.students.index')">Hồ sơ học sinh</x-responsive-nav-link>@endcan
+                @can('academic_years.prepare')<x-responsive-nav-link :href="route('admin.academic-years.prepare')">Năm học mới</x-responsive-nav-link>@endcan
                 @can('registrations.view')<x-responsive-nav-link :href="route('admin.registrations.index')">Đăng ký legacy</x-responsive-nav-link>@endcan
                 @can('settings.manage')<x-responsive-nav-link :href="route('admin.settings.index')">Cài đặt</x-responsive-nav-link>@endcan
                 @can('staff.manage')<x-responsive-nav-link :href="route('admin.staff.index')">Nhân sự</x-responsive-nav-link>@endcan

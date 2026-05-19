@@ -30,7 +30,7 @@ class PublicLeaderboardController extends Controller
 
         $canShow = $exam
             && ((bool) $exam->publish_scores || (bool) data_get($scoreOptions, 'public_scoreboard', false))
-            && ((bool) data_get($scoreOptions, 'show_ranking', false) || (bool) $exam->show_public_stats);
+            && (bool) data_get($scoreOptions, 'show_ranking', false);
 
         $rankings = collect();
         $rankingsByGrade = collect();
